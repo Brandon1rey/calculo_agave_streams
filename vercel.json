@@ -6,6 +6,11 @@
       "memory": 512
     }
   },
+  "rewrites": [
+    { "source": "/api/:a/:b/:c/:d", "destination": "/api/index?__p=:a/:b/:c/:d" },
+    { "source": "/api/:a/:b/:c", "destination": "/api/index?__p=:a/:b/:c" },
+    { "source": "/api/:a/:b", "destination": "/api/index?__p=:a/:b" }
+  ],
   "headers": [
     {
       "source": "/sw.js",

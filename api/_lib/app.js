@@ -381,17 +381,53 @@ function serveStatic(pathname, res){
 }
 
 /* ============================== entrada ============================== */
+/* En Vercel, un proyecto "Other" NO soporta el catch-all `api/[...path].js`:
+   solo enruta un segmento, así que /api/razones/:id y todo lo anidado daba el
+   404 del hosting (texto "The page could not be found", que el cliente intentaba
+   parsear como JSON). vercel.json reescribe esas rutas a api/index.js y la ruta
+   lógica llega en ?__p=... . Si el hosting conservara la ruta original en
+   req.url, se usa esa. En local nunca hay rewrite y se usa req.url tal cual. */
+function resolverRuta(req, u){
+  const inyectada = u.searchParams.get('__p');
+  if (inyectada) u.searchParams.delete('__p');   // no es un filtro de negocio
+  const segmentos = u.pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean);
+  if (segmentos.length <= 1 && inyectada){
+    return { pathname: '/api/' + String(inyectada).replace(/^\/+/, ''), inyectada: inyectada, origen: 'rewrite(__p)' };
+  }
+  return { pathname: u.pathname, inyectada: inyectada || null, origen: 'req.url' };
+}
+
+/* Diagnóstico de enrutado: sirve para comprobar cómo llega una petición a la
+   función sin exponer nada sensible. */
+function diag(req, res, u, ruta){
+  return sendJson(res, 200, {
+    ok: true,
+    runtime: process.env.VERCEL ? 'vercel' : 'local',
+    region: process.env.VERCEL_REGION || null,
+    visto_por_la_funcion: req.url,
+    pathname_resuelto: ruta.pathname,
+    rewrite_inyectado: ruta.inyectada,
+    origen: ruta.origen,
+    metodo: req.method,
+    ahora: new Date().toISOString()
+  }, 'no-store');
+}
+
 async function handleRequest(req, res){
   const host = req.headers.host || 'localhost';
   const u = new URL(req.url, 'http://' + host);
   const method = (req.method || 'GET').toUpperCase();
+  const ruta = resolverRuta(req, u);
+  const pathname = ruta.pathname;
 
-  if (u.pathname.startsWith('/api/')){
+  if (pathname === '/api/_diag' && (method === 'GET' || method === 'HEAD')) return diag(req, res, u, ruta);
+
+  if (pathname.startsWith('/api/')){
     if (!authGate(req, res, u)) return;
-    return handleApi(req, res, method, u.pathname, u.searchParams);
+    return handleApi(req, res, method, pathname, u.searchParams);
   }
   if (method !== 'GET' && method !== 'HEAD'){ sendErr(res, 405, 'Método no permitido'); return; }
   return serveStatic(u.pathname, res);
 }
 
-module.exports = { handleRequest, handleApi, serveStatic, authGate, stateOf, ticketHtml, exportCsv };
+module.exports = { handleRequest, handleApi, serveStatic, authGate, stateOf, ticketHtml, exportCsv, resolverRuta };

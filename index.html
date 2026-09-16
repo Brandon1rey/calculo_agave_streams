@@ -394,11 +394,32 @@ function setReadOnly(on, msg){
   else hideError();
 }
 
+function leerCuerpo(r){
+  // Lee el cuerpo tolerando respuestas que no son JSON (p. ej. la página de
+  // error del hosting). Sin esto el usuario veía "Unexpected token '<'".
+  if (r && typeof r.text === 'function'){
+    return r.text().then(function(t){
+      var j = null;
+      try { j = t ? JSON.parse(t) : null; } catch (e) { j = null; }
+      return { json: j, texto: t };
+    }, function(){ return { json: null, texto: '' }; });
+  }
+  return Promise.resolve(r && typeof r.json === 'function' ? r.json() : null)
+    .then(function(j){ return { json: j, texto: '' }; }, function(){ return { json: null, texto: '' }; });
+}
+
 function api(path, opts){
   return netFetch(path, opts).then(function(r){
     var fromCache = !!r.offline;
     var cachedAt = r.cachedAt;
-    return r.json().then(function(j){
+    return leerCuerpo(r).then(function(leido){
+      var j = leido.json;
+      if (j === null || j === undefined){
+        var tipo = '';
+        try { tipo = (r.headers && r.headers.get) ? (r.headers.get('content-type') || '') : ''; } catch (e) { tipo = ''; }
+        throw new Error('El servidor respondió ' + r.status + ' con ' + (tipo || 'un contenido que no es JSON') +
+          (path ? ' en ' + path : '') + ': ' + String(leido.texto || '').replace(/\s+/g, ' ').slice(0, 140));
+      }
       if (!r.ok) throw new Error(j && j.error ? j.error : ('HTTP ' + r.status));
       if (j && typeof j === 'object' && !Array.isArray(j)){
         if (fromCache) j.__offline = true;
