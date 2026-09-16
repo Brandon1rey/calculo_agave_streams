@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/[...path].js": {
+    "api/**/*.js": {
       "maxDuration": 30,
       "memory": 512
     }
@@ -19,12 +19,5 @@
         { "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" }
       ]
     }
-  ],
-  "routes": [
-    { "src": "/(data|scripts|supabase|tests)/.*", "status": 404 },
-    { "src": "/(server|package|package-lock|vercel)\\.(js|json)", "status": 404 },
-    { "src": "/(\\..*)", "status": 404 },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

@@ -1,0 +1,10 @@
+# Archivos que NO se suben al deployment (sintaxis .gitignore).
+# Con esto las utilidades, el esquema y las pruebas no quedan accesibles por HTTP
+# ni ocupan espacio en el bundle; api/ sí se despliega (como funciones).
+.env
+.env.*
+!.env.local.example
+data/
+tests/
+supabase/
+scripts/
