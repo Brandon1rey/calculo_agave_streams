@@ -1,0 +1,10 @@
+{
+  "name": "agave-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mock dashboard para controlar campanas de ingreso de agave y medir merma / aprovechamiento.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

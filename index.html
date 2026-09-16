@@ -1,0 +1,1201 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agave Cía · Recepción · Producción · Calculadora</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%231F6A44'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='%23F4F1E8' font-family='Georgia'>A</text></svg>">
+<style>
+:root{
+  --bg:#F4F1E8; --surface:#FEFCF7; --surface-2:#EDE8DA; --surface-3:#E4DECC;
+  --ink:#1C2820; --ink-2:#46544A; --ink-3:#6B766D;
+  --line:#DED7C6; --line-strong:#C8BFA8;
+  --accent:#1F6A44; --accent-soft:#DCE9DE; --accent-border:#B7D3BE;
+  --gold:#A9742E; --gold-soft:#F0E3CC; --gold-border:#E0CBA2;
+  --warn:#B84A2E; --warn-soft:#F5DED4; --warn-border:#E3BBA8;
+  --info:#3A7184; --info-soft:#D9E8EC; --info-border:#B5D2DA;
+  --violet:#6B4FA0; --violet-soft:#E7DFF2;
+  --radius:14px;
+  --font-sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-display:Georgia,"Times New Roman",serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+#main{transition:opacity .25s}
+
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);height:100vh;overflow:hidden}
+.sidebar{grid-row:1/-1;background:var(--ink);color:#E9E4D6;display:flex;flex-direction:column;padding:22px 16px;gap:4px;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:12px;padding:6px 10px 20px;border-bottom:1px solid rgba(244,241,232,.12);margin-bottom:14px}
+.brand-mark{width:40px;height:40px;border-radius:11px;flex:0 0 auto;background:linear-gradient(145deg,var(--accent),#2E8B58);display:grid;place-items:center;font-family:var(--font-display);font-size:21px;color:#F4F1E8;font-weight:700}
+.brand-name{font-family:var(--font-display);font-size:16px;color:#F7F4EA}
+.brand-sub{font-size:11px;color:#A7B0A4;letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+.nav-label{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#7E887C;padding:14px 12px 6px}
+.nav-link{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;color:#CFD5C9;font-weight:500;min-height:40px}
+.nav-link svg{width:18px;height:18px;flex:0 0 auto;opacity:.85}
+.nav-link:hover{background:rgba(244,241,232,.07);color:#fff}
+.nav-link.active{background:var(--accent);color:#fff;box-shadow:0 6px 16px -8px rgba(31,106,68,.9)}
+.sidebar-foot{margin-top:auto;padding-top:16px;border-top:1px solid rgba(244,241,232,.12);font-size:11.5px;color:#7E887C}
+.export-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:10px;border:1px solid rgba(244,241,232,.22);background:transparent;color:#E9E4D6;font-weight:600;font-size:13px}
+.export-btn:hover{background:rgba(244,241,232,.08)}
+
+.shell{grid-column:2;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.topbar{display:flex;align-items:center;gap:16px;padding:14px 28px;background:var(--surface);border-bottom:1px solid var(--line);flex:0 0 auto}
+.topbar-title{font-family:var(--font-display);font-size:19px;font-weight:700;margin-right:auto;white-space:nowrap}
+.topbar-title small{display:block;font-family:var(--font-sans);font-size:12px;font-weight:400;color:var(--ink-3)}
+.api-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-border);padding:5px 10px;border-radius:999px;white-space:nowrap}
+.api-pill .pdot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.user{display:flex;align-items:center;gap:10px;padding-left:16px;border-left:1px solid var(--line)}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--gold-soft);color:var(--gold);border:1px solid var(--gold-border);display:grid;place-items:center;font-weight:700;font-size:13px}
+.user-meta{line-height:1.2}.user-meta b{display:block;font-size:13px}.user-meta span{font-size:11px;color:var(--ink-3)}
+
+main{flex:1 1 auto;overflow-y:auto;padding:26px 28px 70px}
+.hero{margin-bottom:14px}
+.hero h1{font-family:var(--font-display);font-size:24px;margin:0 0 4px}
+.hero p{margin:0;color:var(--ink-2);max-width:940px}
+.banner{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;margin-bottom:16px;font-size:13px}
+.banner.err{background:var(--warn-soft);border:1px solid var(--warn-border);color:var(--warn)}
+.banner button{margin-left:auto;background:transparent;border:1px solid var(--warn-border);color:var(--warn);padding:6px 12px;border-radius:8px;font-weight:600}
+.banner button:hover{background:rgba(184,74,46,.08)}
+#loadingBar{position:sticky;top:0;z-index:5;height:3px;background:var(--accent-soft);overflow:hidden}
+#loadingBar::after{content:'';display:block;height:100%;width:40%;background:var(--accent);animation:loadslide 1s infinite}
+@keyframes loadslide{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
+.steps-card{background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--radius);padding:15px 18px;margin-top:14px;font-size:13.5px;color:var(--ink-2)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 1px 2px rgba(28,40,32,.05)}
+.section-head{display:flex;align-items:center;gap:12px;margin:28px 0 14px;flex-wrap:wrap}
+.section-head h2{font-family:var(--font-display);font-size:17px;margin:0}
+.section-head .hint{color:var(--ink-3);font-size:12.5px}
+.section-head .spacer{flex:1}
+
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+.kpi{padding:16px 16px 14px;position:relative;overflow:hidden}
+.kpi .label{font-size:11px;font-weight:600;color:var(--ink-2);letter-spacing:.02em;text-transform:uppercase;display:flex;align-items:center;gap:7px}
+.kpi .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.kpi .value{font-family:var(--font-display);font-size:26px;font-weight:700;margin:6px 0 2px;font-variant-numeric:tabular-nums}
+.kpi .value small{font-size:13px;color:var(--ink-3);font-weight:400}
+.kpi .foot{font-size:11.5px;color:var(--ink-3)}
+.kpi.k-accent{background:linear-gradient(150deg,var(--accent),#2E8B58);color:#fff;border-color:transparent}
+.kpi.k-accent .label,.kpi.k-accent .foot{color:rgba(255,255,255,.8)}
+.kpi.k-accent .value{color:#fff}.kpi.k-accent .value small{color:rgba(255,255,255,.7)}
+
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:16px}
+.panel-card{padding:18px}
+.panel-card h3{margin:0;font-family:var(--font-display);font-size:15px;display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.panel-card .sub{font-size:12px;color:var(--ink-3);margin-bottom:14px}
+.sw-dot{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+.card-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.prog{margin-bottom:12px}
+.prog .pl{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px}
+.prog .pl b{font-variant-numeric:tabular-nums}
+.prog .pl span{color:var(--ink-3)}
+.track{height:10px;border-radius:6px;background:var(--surface-2);overflow:hidden}
+.fill{height:100%;border-radius:6px;transition:width .4s}
+.dual{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.stat-line{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.stat-line:last-child{border-bottom:0}
+.stat-line span{color:var(--ink-2)}.stat-line b{font-variant-numeric:tabular-nums}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.badge.ok{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border)}
+.badge.mid{background:var(--gold-soft);color:var(--gold);border:1px solid var(--gold-border)}
+.badge.warn{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn-border)}
+.badge.info{background:var(--info-soft);color:var(--info);border:1px solid var(--info-border)}
+
+.chips{display:inline-flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);padding:7px 13px;border-radius:999px;font-size:12.5px;font-weight:600}
+.chip[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.chip:hover{border-color:var(--line-strong)}
+
+.cal-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cal-nav{display:inline-flex;gap:6px}
+.cal-nav button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);font-size:16px;display:grid;place-items:center}
+.cal-nav button:hover{background:var(--surface-2)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:14px}
+.cal-dow{text-align:center;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:6px 0}
+.cal-cell{background:var(--surface);border:1px solid var(--line);border-radius:11px;min-height:86px;padding:8px;position:relative}
+.cal-cell.other{background:transparent;border-color:transparent;cursor:default}
+.cal-cell .dnum{font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:6px}
+.cal-cell.today{border:2px solid var(--accent)}
+.cal-cell.today .dnum{color:var(--accent)}
+.cal-trucks{display:flex;flex-direction:column;gap:3px;font-size:11px}
+.cal-trucks .ct{display:flex;align-items:center;gap:5px}
+.cal-trucks .ct b{font-variant-numeric:tabular-nums}
+.ct-p{color:var(--ink-3)}.ct-r{color:var(--accent);font-weight:600}
+.cal-cell .delta{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%}
+.cal-cell.clickable{cursor:pointer}
+.cal-cell.clickable:hover{border-color:var(--accent);background:var(--accent-soft)}
+.cal-plus{position:absolute;bottom:6px;right:8px;width:17px;height:17px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;line-height:17px;text-align:center;opacity:0;transition:opacity .15s}
+.cal-cell.clickable:hover .cal-plus,.cal-cell.clickable:focus-visible .cal-plus{opacity:1}
+.cal-summary{display:flex;gap:22px;flex-wrap:wrap;margin-top:16px;padding:14px 18px}
+.cal-summary .cs{font-size:13px}
+.cal-summary .cs b{font-family:var(--font-display);font-size:20px;display:block}
+
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:860px}
+thead th{text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-2);white-space:nowrap;font-weight:600}
+thead th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+tbody td{padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--accent-soft)}
+.cell-name{font-weight:600}.cell-sub{font-size:11.5px;color:var(--ink-3);margin-top:1px}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap}
+.small-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);font-size:12px;font-weight:600}
+.small-btn:hover{background:var(--surface-2);border-color:var(--line-strong)}
+.small-btn.ok{background:var(--accent);border-color:var(--accent);color:#fff}
+.small-btn.ok:hover{background:#185938}
+.small-btn.danger{color:var(--warn)}
+.small-btn.danger:hover{background:var(--warn-soft);border-color:var(--warn-border)}
+
+.donut-grid{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:18px}
+.donut-box{flex:0 0 auto;width:190px}
+.donut-list{flex:1;min-width:210px;display:flex;flex-direction:column;gap:9px}
+.dl-row{display:flex;align-items:center;gap:9px;font-size:13px}
+.dl-row .sw{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
+.dl-row .nm{color:var(--ink-2)}
+.dl-row .val{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600}
+.dl-row .pct{width:46px;text-align:right;color:var(--ink-3);font-size:12px}
+
+.primary-btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;border:0;padding:10px 16px;border-radius:10px;font-weight:600;font-size:13.5px;box-shadow:0 6px 16px -8px rgba(31,106,68,.7)}
+.primary-btn:hover{background:#185938}
+.ghost-btn{display:inline-flex;align-items:center;gap:8px;background:var(--surface);color:var(--ink-2);border:1px solid var(--line);padding:10px 16px;border-radius:10px;font-weight:600;font-size:13.5px}
+.ghost-btn:hover{background:var(--surface-2)}
+.state{padding:30px 24px;text-align:center;color:var(--ink-2)}
+.state h3{font-family:var(--font-display);font-size:16px;margin:0 0 6px;color:var(--ink)}
+.state p{margin:0 0 14px;max-width:460px;margin-inline:auto}
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);z-index:60;background:var(--ink);color:#F4F1E8;padding:12px 18px;border-radius:12px;font-size:13.5px;font-weight:500;box-shadow:0 14px 40px -12px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:all .25s;display:flex;align-items:center;gap:9px;max-width:90vw}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#toast.err{background:var(--warn)}
+
+.modal-backdrop{position:fixed;inset:0;z-index:50;background:rgba(20,28,22,.5);display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)}
+.modal-backdrop.open{display:flex}
+.modal{width:540px;max-width:100%;max-height:92vh;overflow-y:auto;background:var(--surface);border-radius:18px;box-shadow:0 30px 80px -30px rgba(0,0,0,.6)}
+.modal-head{padding:16px 22px 12px;border-bottom:1px solid var(--line)}
+.modal-head .row1{display:flex;align-items:center;gap:10px}
+.modal-head h3{font-family:var(--font-display);font-size:17px;margin:0;flex:1}
+.icon-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;color:var(--ink-2)}
+.icon-btn:hover{background:var(--surface-2)}
+.icon-btn svg{width:15px;height:15px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);flex-wrap:wrap}
+.seg button{border:0;background:transparent;padding:8px 13px;font-size:12px;font-weight:600;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg button:disabled{opacity:.45;cursor:not-allowed}
+.modal-body{padding:18px 22px;display:flex;flex-direction:column;gap:13px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.field input,.field select{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:14px;width:100%}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.field .err{font-size:12px;color:var(--warn);display:none}
+.field.invalid input,.field.invalid select{border-color:var(--warn)}
+.field.invalid .err{display:block}
+.field .hint,.modal-body .hint{font-size:11.5px;color:var(--ink-3)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--line)}
+details.fine{border:1px dashed var(--line-strong);border-radius:10px;padding:8px 12px;background:var(--bg)}
+details.fine summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--ink-2);user-select:none}
+details.fine .fine-body{display:flex;flex-direction:column;gap:12px;margin-top:10px}
+.esp-line{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:var(--ink-2);border-bottom:1px dashed var(--line)}
+.esp-line b{font-variant-numeric:tabular-nums}
+
+.calc-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:12px 0}
+.param-inp label{font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px}
+.param-inp input{padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:13px;width:100%}
+.param-inp input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.calc-out{font-size:13.5px;padding:10px 14px;background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:10px;margin-bottom:12px}
+.calc-out b{font-family:var(--font-display);font-size:17px}
+.cascade-table{width:100%;border-collapse:collapse;font-size:13px}
+.cascade-table th,.cascade-table td{border:1px solid var(--line);padding:7px 10px;text-align:left}
+.cascade-table th{background:var(--surface-2);font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3)}
+.cascade-table td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+
+@media (max-width:1280px){.calc-grid{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:1180px){.kpis{grid-template-columns:repeat(3,1fr)}.grid-3{grid-template-columns:1fr}.grid-2{grid-template-columns:1fr}}
+@media (max-width:860px){.app{grid-template-columns:1fr}.sidebar{display:none}.shell{grid-column:1}.kpis{grid-template-columns:repeat(2,1fr)}.calc-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" aria-label="Navegación">
+    <div class="brand"><div class="brand-mark">A</div><div><div class="brand-name">Agave &amp; Cía</div><div class="brand-sub">Recepción · Producción E2E</div></div></div>
+    <div class="nav-label">Operación</div>
+    <a class="nav-link active" href="#panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Panel</a>
+    <a class="nav-link" href="#calculadora"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M12 12h2M8 16h2M12 16h2" stroke-linecap="round"/></svg>Calculadora</a>
+    <a class="nav-link" href="#calendario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>Calendario</a>
+    <a class="nav-link" href="#ingresos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 5h18M3 12h18M3 19h18" stroke-linecap="round"/></svg>Recepción</a>
+    <a class="nav-link" href="#ordenes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h10" stroke-linecap="round"/></svg>Producción</a>
+    <a class="nav-link" href="#merma"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-5 4 4 6-8" stroke-linecap="round" stroke-linejoin="round"/></svg>Merma</a>
+    <div class="nav-label">Datos</div>
+    <a class="nav-link" href="#backups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4z" stroke-linejoin="round"/><path d="M8 9h8M8 13h5" stroke-linecap="round"/></svg>Respaldo</a>
+    <div class="nav-label">Visual</div>
+    <a class="nav-link" href="flujo.html" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6h10M5 8v8M19 8v8M7 18h2M15 18h2"/></svg>Flujo de streams</a>
+    <div class="sidebar-foot">
+      <button class="export-btn" data-act="export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px"><path d="M12 3v12M7 10l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 19h16" stroke-linecap="round"/></svg>Exportar CSV</button>
+      <p style="text-align:center;margin:14px 0 0">Sin datos mock · data/db.json</p>
+    </div>
+  </aside>
+
+  <div class="shell">
+    <header class="topbar">
+      <div class="topbar-title">Recepción de materia prima y producción <small>Reemplaza tus tablas macro de Excel</small></div>
+      <span class="api-pill" id="apiPill"><span class="pdot"></span>API en línea</span>
+      <div class="user"><div class="avatar" aria-hidden="true">JB</div><div class="user-meta"><b>Encargado</b><span>Recepción · Producción</span></div></div>
+    </header>
+
+    <div id="loadingBar" hidden aria-hidden="true"></div>
+    <main id="main">
+      <div class="banner err" id="errorBanner" role="alert" hidden>
+        <span id="errorMsg"></span>
+        <button data-act="retry">Reintentar</button>
+      </div>
+      <section id="panel" aria-label="Panel general">
+        <div class="hero">
+          <h1>Del camión a la botella: recepción y producción E2E</h1>
+          <p>Registra solo lo esencial (razón social → stream → camiones → consumo) y la app calcula merma y tequila. Los <b>detalles finos</b> (pesaje, inspección de calidad, parámetros de rendimiento, órdenes por etapa) son <b>opcionales</b>: agrégalos cuando los necesites, como en tus tablas macro.</p>
+        </div>
+        <div id="steps"></div>
+        <div class="kpis" id="kpis" style="margin-top:18px">
+          <div class="skeleton" style="height:104px"></div><div class="skeleton" style="height:104px"></div>
+          <div class="skeleton" style="height:104px"></div><div class="skeleton" style="height:104px"></div>
+          <div class="skeleton" style="height:104px"></div><div class="skeleton" style="height:104px"></div>
+        </div>
+      </section>
+
+      <div class="section-head"><h2>Razones sociales y campañas</h2><span class="hint">Entidad legal · la calculadora usa su rendimiento</span><span class="spacer"></span><button class="ghost-btn" data-act="reset-all">Vaciar datos</button><button class="primary-btn" data-act="add-rs">+ Razón social</button></div>
+      <div class="grid-2" id="razones"></div>
+
+      <div class="section-head" id="calculadora"><h2>Calculadora de rendimiento</h2><span class="hint">Fine tuning por etapa: cambia un coeficiente y mira el resultado al instante</span></div>
+      <div id="calcWrap" style="display:flex;flex-direction:column;gap:16px"></div>
+
+      <div class="section-head"><h2>Streams de ingreso</h2><span class="hint">Cada stream alimenta la campaña de una razón social</span><span class="spacer"></span><button class="primary-btn" data-act="add-stream">+ Stream</button></div>
+      <div class="grid-3" id="streams"></div>
+
+      <div class="section-head"><h2>Calendario de camiones</h2><span class="hint">Planeados vs reales — los camiones no son puntuales</span><span class="spacer"></span><div class="chips" id="calChips" role="group" aria-label="Filtrar calendario por stream"></div></div>
+      <div class="card" style="padding:16px 18px">
+        <div class="cal-head" id="calMonthTitle"></div>
+        <div class="cal-grid" id="calDows"></div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-summary card" id="calSummary"></div>
+      </div>
+
+      <div class="section-head" id="ingresos"><h2>Recepción de materia prima</h2><span class="hint">Camiones, pesaje, inspección y remisión</span><span class="spacer"></span><button class="primary-btn" data-act="add-camion">+ Camión</button></div>
+      <div class="card"><div class="table-scroll"><table><thead><tr><th scope="col">Stream</th><th scope="col">Razón social</th><th scope="col">Placa</th><th scope="col" class="num">kg neto</th><th scope="col" class="num">Bruto/Tara</th><th scope="col">F. planeada</th><th scope="col">F. real</th><th scope="col">Estado</th><th scope="col">Inspección</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead><tbody id="tbody"></tbody></table></div></div>
+
+      <div class="section-head"><h2>Consumo de agave a producción</h2><span class="hint">Agave consumido → tequila</span><span class="spacer"></span><button class="primary-btn" data-act="add-consumo">+ Consumo</button></div>
+      <div class="card"><div class="table-scroll"><table><thead><tr><th scope="col">Fecha</th><th scope="col">Stream</th><th scope="col">Razón social</th><th scope="col" class="num">kg consumidos</th><th scope="col" class="num">Tequila (L)</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead><tbody id="consumosBody"></tbody></table></div></div>
+
+      <div class="section-head" id="ordenes"><h2>Órdenes de producción (E2E)</h2><span class="hint">Lotes con control de rendimiento real vs esperado</span><span class="spacer"></span><button class="primary-btn" data-act="add-orden">+ Orden</button></div>
+      <div class="card"><div class="table-scroll"><table><thead><tr><th scope="col">Orden</th><th scope="col">Razón social</th><th scope="col">Estado</th><th scope="col" class="num">Agave (kg)</th><th scope="col" class="num">Tequila esperado (L)</th><th scope="col" class="num">Tequila real (L)</th><th scope="col" class="num">Rend. real (L/t)</th><th scope="col" class="num">Eficiencia</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead><tbody id="ordenesBody"></tbody></table></div></div>
+
+      <div class="section-head"><h2>Merma por causa</h2><span class="hint">Distribución de la merma (editable)</span></div>
+      <div class="card donut-grid" id="mermaWrap"></div>
+
+      <div class="section-head" id="backups"><h2>Respaldo y restauración</h2><span class="hint">Snapshots de data/db.json · restaura cualquier momento</span><span class="spacer"></span><button class="primary-btn" data-act="backup-create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:15px;height:15px"><path d="M12 3v12M7 10l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 19h16" stroke-linecap="round"/></svg>Crear respaldo</button></div>
+      <div class="card" id="backupsCard"></div>
+    </main>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <div class="row1">
+        <h3 id="modalTitle">Registrar</h3>
+        <button class="icon-btn" id="modalCloseBtn" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="seg" id="modeSeg" role="group" aria-label="Tipo de registro">
+        <button data-mode="rs" aria-pressed="false">Razón social</button>
+        <button data-mode="stream" aria-pressed="false">Stream</button>
+        <button data-mode="camion" aria-pressed="false">Camión</button>
+        <button data-mode="consumo" aria-pressed="false">Consumo</button>
+      </div>
+    </div>
+    <form id="regForm" novalidate>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot"><button type="button" class="ghost-btn" id="modalCancelBtn">Cancelar</button><button type="submit" class="primary-btn" id="regSubmit">Guardar</button></div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* ===== Cliente API-first. Sin datos mock. Entradas generalizadas: los
+detalles finos (pesaje, inspección, parámetros, etapas) son opcionales. ===== */
+var state = null;
+var calCursor = null;
+var calFilter = 'todos';
+var modal = { type: 'rs', editId: null, recibirId: null, prefill: null };
+
+var PARAM_KEYS = ['coccionPerdida','moliendaRendimiento','conversionMostoAlcohol','destilacionRendimiento','anejamientoPerdida'];
+var PARAM_LABELS = {
+  coccionPerdida:'Cocción · pérdida (%)',
+  moliendaRendimiento:'Molienda · eficiencia (%)',
+  conversionMostoAlcohol:'Mosto→alcohol (L 100%/kg)',
+  destilacionRendimiento:'Destilación · rendimiento (%)',
+  anejamientoPerdida:'Añejamiento · pérdida (%)'
+};
+
+function esc(s){ return String(s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
+function fmtT(t){ return Number(t||0).toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:1}); }
+function fmtKg(kg){ return Math.round(kg||0).toLocaleString('es-MX'); }
+function fmtL(l){ return Number(l||0).toLocaleString('es-MX'); }
+function fmtDate(ymd){ if(!ymd) return '—'; var dt = new Date(ymd+'T00:00:00'); return dt.toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'}); }
+function streamById(id){ return state ? state.streams.filter(function(s){ return s.id===id; })[0] : null; }
+function rsById(id){ return state ? state.razonesSociales.filter(function(r){ return r.id===id; })[0] : null; }
+function ordenById(id){ return state ? state.ordenes.filter(function(o){ return o.id===id; })[0] : null; }
+function destinosHtml(s){
+  var parts = [];
+  Object.keys(s.destinos || {}).forEach(function(k){
+    var rs = rsById(k);
+    parts.push(fmtT((s.destinos[k] || 0) / 1000) + ' t → ' + esc(rs ? rs.corto : k));
+  });
+  return parts.join(' · ') || '—';
+}
+
+function api(path, opts){
+  return fetch(path, opts).then(function(r){
+    return r.json().then(function(j){
+      if (!r.ok) throw new Error(j && j.error ? j.error : ('HTTP ' + r.status));
+      return j;
+    });
+  });
+}
+function setLoading(on){
+  var bar = document.getElementById('loadingBar');
+  if (bar) bar.hidden = !on;
+  document.getElementById('main').style.opacity = on ? '0.5' : '1';
+  document.getElementById('main').style.pointerEvents = on ? 'none' : 'auto';
+}
+function showError(msg){ document.getElementById('errorBanner').hidden = false; document.getElementById('errorMsg').textContent = msg; setLoading(false); }
+function hideError(){ document.getElementById('errorBanner').hidden = true; }
+
+function loadState(){
+  setLoading(true); hideError();
+  return api('/api/state').then(function(s){
+    state = s;
+    if (!calCursor) calCursor = new Date(s.meta.hoy + 'T00:00:00');
+    render();
+    setLoading(false);
+    return s;
+  }).catch(function(e){
+    showError((e && e.message) ? ('No se pudo conectar con el backend: ' + e.message) : 'No se pudo conectar con el backend.');
+  });
+}
+function applyState(s){ state = s; render(); setLoading(false); }
+
+function render(){ renderKpis(); renderSteps(); renderRazones(); renderCalculadora(); renderStreams(); renderCalendar(); renderTrucks(); renderConsumos(); renderOrdenes(); renderMerma(); renderBackups(); }
+
+/* ---------- KPIs ---------- */
+function renderKpis(){
+  var t = state.resumen;
+  var recep = t.objetivoT > 0 ? Math.round(t.recibidoT / t.objetivoT * 100) : 0;
+  var mermaPct = t.recibidoT > 0 ? Math.round(t.mermaT / t.recibidoT * 100) : 0;
+  var consPct = t.aprovechadoT > 0 ? Math.round(t.consumidoT / t.aprovechadoT * 100) : 0;
+  document.getElementById('kpis').innerHTML =
+    kpi('Objetivo campaña', fmtT(t.objetivoT), 't', 'var(--info)', 'suma de objetivos de tus streams') +
+    kpi('Recibido', fmtT(t.recibidoT), 't', 'var(--accent)', recep + '% del objetivo') +
+    kpi('Aprovechado', fmtT(t.aprovechadoT), 't', 'var(--gold)', 'tras descontar merma') +
+    kpi('Merma', fmtT(t.mermaT), 't', 'var(--warn)', mermaPct + '% de lo recibido') +
+    kpi('Tequila esperado', fmtL(t.tequilaEsperado), 'L', 'var(--violet)', 'según calculadora de rendimiento') +
+    kpi('Tequila producido', fmtL(t.tequilaProducido), 'L', 'var(--accent)', consPct + '% consumido', true);
+}
+function kpi(label, value, unit, color, foot, accent){
+  return '<div class="card kpi' + (accent ? ' k-accent' : '') + '"><div class="label"><span class="dot" style="background:' + color + '"></span>' + label + '</div><div class="value">' + value + ' <small>' + unit + '</small></div><div class="foot">' + foot + '</div></div>';
+}
+
+/* ---------- Flujo sugerido (onboarding) ---------- */
+function renderSteps(){
+  var el = document.getElementById('steps');
+  if (state.streams.length > 0){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="steps-card"><b>Para empezar (lo esencial):</b> 1) <b>Razón social</b> (solo nombre) · 2) <b>Stream</b> (nombre + objetivo en t; la merma por defecto es 10 %) · 3) <b>Camiones</b> (stream + kg + fecha) y <b>consumos</b>. <span style="color:var(--ink-3)">Los detalles finos (pesaje, inspección, calculadora, órdenes) son opcionales y aparecen en su sección.</span></div>';
+}
+
+/* ---------- Razones sociales ---------- */
+function renderRazones(){
+  var el = document.getElementById('razones');
+  if (state.razonesSociales.length === 0){
+    el.innerHTML = '<div class="card state" style="grid-column:1/-1"><h3>Aún no tienes razones sociales</h3><p>Crea tu primera razón social (entidad legal). El rendimiento de tequila se calcula automáticamente con el preset <b>Base</b> y puedes afinarlo en la Calculadora.</p><button class="primary-btn" data-act="add-rs">+ Crear razón social</button></div>';
+    return;
+  }
+  el.innerHTML = state.razonesSociales.map(function(r){
+    var t = r.totales;
+    var color = r.id === 'rsA' ? 'var(--accent)' : 'var(--info)';
+    var recep = t.objetivoT > 0 ? Math.round(t.recibidoT / t.objetivoT * 100) : 0;
+    var cons = t.aprovechadoT > 0 ? Math.round(t.consumidoT / t.aprovechadoT * 100) : 0;
+    return '<div class="card panel-card">' +
+      '<div class="card-head"><h3><span class="sw-dot" style="background:' + color + '"></span>' + esc(r.corto) + '</h3>' +
+      '<div class="card-actions">' +
+        '<button class="small-btn" data-act="edit-rs" data-id="' + r.id + '">Editar</button>' +
+        '<button class="small-btn danger" data-act="del-rs" data-id="' + r.id + '">Eliminar</button>' +
+      '</div></div>' +
+      '<div class="sub">' + esc(r.nombre) + ' · ' + t.streams + ' stream' + (t.streams!==1?'s':'') + ' · rendimiento <b>' + r.rendimientoEfectivo + ' L/t</b></div>' +
+      '<div style="margin-bottom:12px"><span class="badge ' + r.status.cls + '">' + esc(r.status.text) + '</span></div>' +
+      '<div class="dual">' +
+        '<div class="prog"><div class="pl"><span>Recepción</span><b>' + recep + '%</b></div><div class="track"><div class="fill" style="width:' + Math.min(100,recep) + '%;background:' + color + '"></div></div><div class="pl" style="margin-top:4px"><span style="font-size:11.5px">' + fmtT(t.recibidoT) + ' / ' + fmtT(t.objetivoT) + ' t</span></div></div>' +
+        '<div class="prog"><div class="pl"><span>Consumo</span><b>' + cons + '%</b></div><div class="track"><div class="fill" style="width:' + Math.min(100,cons) + '%;background:var(--gold)"></div></div><div class="pl" style="margin-top:4px"><span style="font-size:11.5px">' + fmtT(t.consumidoT) + ' / ' + fmtT(t.aprovechadoT) + ' t</span></div></div>' +
+      '</div>' +
+      '<div class="stat-line"><span>Falta por recibir</span><b>' + fmtT(t.restanteT) + ' t</b></div>' +
+      '<div class="stat-line"><span>Merma acumulada</span><b>' + fmtT(t.mermaT) + ' t</b></div>' +
+      '<div class="stat-line"><span>Tequila esperado</span><b>' + fmtL(t.tequilaEsperado) + ' L</b></div>' +
+      '<div class="stat-line"><span>Tequila producido</span><b>' + fmtL(t.tequilaProducido) + ' L</b></div>' +
+      '</div>';
+  }).join('');
+}
+function delRs(id){
+  var r = rsById(id);
+  if (!confirm('¿Eliminar la razón social "' + r.corto + '"?')) return;
+  setLoading(true);
+  api('/api/razones/' + id, { method:'DELETE' }).then(applyState).catch(function(e){ setLoading(false); toastErr(e); });
+}
+
+/* ---------- Calculadora de rendimiento (fine tuning) ---------- */
+function cascadeClient(p, grados, ton){
+  var k = ton * 1000;
+  var cocida = k * (1 - p.coccionPerdida / 100);
+  var mosto = cocida * (p.moliendaRendimiento / 100);
+  var alcohol = mosto * p.conversionMostoAlcohol;
+  var teq100 = alcohol * (p.destilacionRendimiento / 100);
+  var dil = teq100 / (grados / 100);
+  var fin = dil * (1 - p.anejamientoPerdida / 100);
+  return { cocida: cocida, mosto: mosto, alcohol: alcohol, teq100: teq100, dil: dil, fin: fin };
+}
+function renderCalculadora(){
+  var el = document.getElementById('calcWrap');
+  if (state.razonesSociales.length === 0){
+    el.innerHTML = '<div class="card state"><p>La calculadora se activa al crear una razón social. Ajusta aquí los coeficientes por etapa (cocción, molienda, fermentación, destilación, añejamiento) y mira el rendimiento en vivo.</p></div>';
+    return;
+  }
+  el.innerHTML = state.razonesSociales.map(function(r){
+    var g = state.parametrosCalculo.gradosTequila;
+    var cas = cascadeClient(r.parametros, g, 1);
+    var fields = PARAM_KEYS.map(function(k){
+      return '<div class="param-inp"><label>' + PARAM_LABELS[k] + '</label><input data-act="param-input" data-rs="' + r.id + '" data-key="' + k + '" type="number" step="any" value="' + esc(r.parametros[k]) + '"></div>';
+    }).join('');
+    var rows = [
+      ['aprovechado','Agave aprovechado (1 t)', fmtT(1000) + ' kg'],
+      ['coccion','Piña cocida (cocción)', fmtT(cas.cocida) + ' kg'],
+      ['molienda','Jugo extraído (molienda)', fmtT(cas.mosto) + ' kg'],
+      ['fermentacion','Alcohol fermentado', fmtT(cas.alcohol) + ' L 100%'],
+      ['destilacion','Tequila 100% (cortes)', fmtT(cas.teq100) + ' L 100%'],
+      ['dilucion','Dilución a ' + g + '°', fmtT(cas.dil) + ' L'],
+      ['anejamiento','Tequila final', fmtT(cas.fin) + ' L']
+    ].map(function(x){
+      return '<tr><td>' + x[1] + '</td><td class="num" data-cas="' + x[0] + '">' + x[2] + '</td></tr>';
+    }).join('');
+    return '<div class="card panel-card" id="calc-' + r.id + '" style="grid-column:1/-1">' +
+      '<div class="card-head"><h3><span class="sw-dot" style="background:var(--accent)"></span>Calculadora · ' + esc(r.corto) + '</h3>' +
+      '<div class="card-actions">' +
+        '<button class="small-btn' + (r.preset === 'base' ? ' ok' : '') + '" data-act="preset" data-rs="' + r.id + '" data-preset="base">Base</button>' +
+        '<button class="small-btn' + (r.preset === 'optimista' ? ' ok' : '') + '" data-act="preset" data-rs="' + r.id + '" data-preset="optimista">Optimista</button>' +
+        '<button class="small-btn' + (r.preset === 'conservador' ? ' ok' : '') + '" data-act="preset" data-rs="' + r.id + '" data-preset="conservador">Conservador</button>' +
+      '</div></div>' +
+      '<div class="calc-grid">' + fields + '</div>' +
+      '<div class="calc-out">Rendimiento efectivo: <b data-lt="' + r.id + '">' + fmtT(r.rendimientoEfectivo) + ' L/t</b>' +
+        ' · Tequila esperado (con ' + fmtT(r.totales.aprovechadoT) + ' t aprovechadas): <b>' + fmtL(r.totales.tequilaEsperado) + ' L</b>' +
+        ' <span style="color:var(--ink-3);font-weight:400">— cambia un valor y se actualiza en vivo; al salir del campo se guarda.</span></div>' +
+      '<table class="cascade-table"><thead><tr><th>Etapa (por tonelada)</th><th>Resultado</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '</div>';
+  }).join('');
+}
+function readParams(rsId){
+  var p = {};
+  PARAM_KEYS.forEach(function(k){
+    var el = document.querySelector('[data-act="param-input"][data-rs="' + rsId + '"][data-key="' + k + '"]');
+    p[k] = el ? parseFloat(el.value) : NaN;
+  });
+  return p;
+}
+function liveParamPreview(rsId){
+  var p = readParams(rsId);
+  var card = document.getElementById('calc-' + rsId);
+  if (!card || PARAM_KEYS.some(function(k){ return isNaN(p[k]); })) return;
+  var g = state.parametrosCalculo.gradosTequila;
+  var cas = cascadeClient(p, g, 1);
+  card.querySelector('[data-lt]').textContent = fmtT(cas.fin) + ' L/t';
+  card.querySelector('[data-cas="coccion"]').textContent = fmtT(cas.cocida) + ' kg';
+  card.querySelector('[data-cas="molienda"]').textContent = fmtT(cas.mosto) + ' kg';
+  card.querySelector('[data-cas="fermentacion"]').textContent = fmtT(cas.alcohol) + ' L 100%';
+  card.querySelector('[data-cas="destilacion"]').textContent = fmtT(cas.teq100) + ' L 100%';
+  card.querySelector('[data-cas="dilucion"]').textContent = fmtT(cas.dil) + ' L';
+  card.querySelector('[data-cas="anejamiento"]').textContent = fmtT(cas.fin) + ' L';
+}
+function saveParam(rsId, key, val){
+  if (isNaN(val)){ loadState(); return; }
+  var body = { parametros: {} };
+  body.parametros[key] = val;
+  api('/api/razones/' + rsId, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+    .then(applyState)
+    .catch(function(e){ toastErr(e); loadState(); });
+}
+function applyPreset(rsId, nombre){
+  setLoading(true);
+  api('/api/razones/' + rsId + '/presets/' + nombre, { method:'POST' })
+    .then(function(s){ applyState(s); toast('Preset ' + nombre + ' aplicado ✓'); })
+    .catch(function(e){ setLoading(false); toastErr(e); });
+}
+
+/* ---------- Streams ---------- */
+function renderStreams(){
+  var el = document.getElementById('streams');
+  if (state.streams.length === 0){
+    el.innerHTML = '<div class="card state" style="grid-column:1/-1"><h3>Aún no tienes streams</h3><p>Cada stream es un canal de ingreso de agave que alimenta la campaña de una razón social. Solo necesitas nombre + objetivo (la merma por defecto es 10 %).</p><button class="primary-btn" data-act="add-stream">+ Crear stream</button></div>';
+    return;
+  }
+  el.innerHTML = state.streams.map(function(s){
+    var rs = rsById(s.rsId);
+    return '<div class="card panel-card">' +
+      '<div class="card-head"><h3><span class="sw-dot" style="background:' + s.color + '"></span>' + esc(s.nombre) + '</h3>' +
+      '<div class="card-actions">' +
+        '<button class="small-btn ok" data-act="add-llegada" data-id="' + s.id + '" title="Registrar llegada real a este stream">+ Llegada</button>' +
+        '<button class="small-btn" data-act="add-cons-stream" data-id="' + s.id + '" title="Registrar consumo de este stream">+ Consumo</button>' +
+        '<button class="small-btn" data-act="edit-stream" data-id="' + s.id + '">Editar</button>' +
+        '<button class="small-btn danger" data-act="del-stream" data-id="' + s.id + '">Eliminar</button>' +
+      '</div></div>' +
+      '<div class="sub">' + esc(s.zona) + ' · ' + esc(rs ? rs.corto : 'sin RS') + ' · rendimiento ' + s.rendimientoLt + ' L/t</div>' +
+      '<div class="prog"><div class="pl"><span>Recepción del stream</span><b>' + s.pctRecep + '%</b></div><div class="track"><div class="fill" style="width:' + Math.min(100,s.pctRecep) + '%;background:' + s.color + '"></div></div></div>' +
+      '<div class="stat-line"><span>Objetivo (campaña)</span><b>' + fmtT(s.objetivoT) + ' t</b></div>' +
+      '<div class="stat-line"><span>Recibido</span><b>' + fmtT(s.recibidoT) + ' t</b></div>' +
+      '<div class="stat-line"><span>Falta por llegar</span><b>' + fmtT(s.restanteT) + ' t</b></div>' +
+      '<div class="stat-line"><span>Aprovechado (merma efectiva ' + s.mermaEfectivaPct + '%)</span><b>' + fmtT(s.aprovechadoT) + ' t</b></div>' +
+      '<div class="stat-line"><span>Consumido para producción</span><b>' + fmtT(s.consumidoT) + ' t</b></div>' +
+      '<div class="stat-line"><span>Tequila producido</span><b>' + fmtL(s.tequilaProducido) + ' L</b></div>' +
+      '<div class="stat-line"><span>Destinos del agave</span><b style="font-size:12px;text-align:right">' + destinosHtml(s) + '</b></div>' +
+      '<div class="sub" style="margin:8px 0 0;font-size:11px">' + s.camionesRecibidos + ' camiones recibidos · ' + s.camionesPlaneados + ' planeados</div>' +
+      '</div>';
+  }).join('');
+}
+function delStream(id){
+  var s = streamById(id);
+  if (!confirm('¿Eliminar el stream "' + s.nombre + '" y todos sus camiones/consumos?')) return;
+  setLoading(true);
+  api('/api/streams/' + id, { method:'DELETE' }).then(applyState).catch(function(e){ setLoading(false); toastErr(e); });
+}
+
+/* ---------- Calendario ---------- */
+function buildCalChips(){
+  var chips = document.getElementById('calChips');
+  var sig = 'todos|' + state.streams.map(function(s){ return s.id; }).join(',');
+  if (chips.dataset.sig === sig) return;
+  chips.dataset.sig = sig;
+  var opts = [{id:'todos', label:'Todos'}].concat(state.streams.map(function(s){ return {id:s.id, label:s.nombre.split('·')[0].trim()}; }));
+  chips.innerHTML = opts.map(function(o){
+    return '<button class="chip" data-f="' + o.id + '" aria-pressed="' + (o.id === calFilter ? 'true' : 'false') + '">' + esc(o.label) + '</button>';
+  }).join('');
+}
+function calMount(chips){
+  chips.addEventListener('click', function(e){
+    var b = e.target.closest('button[data-f]'); if (!b) return;
+    calFilter = b.getAttribute('data-f');
+    chips.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed','false'); });
+    b.setAttribute('aria-pressed','true');
+    renderCalendar();
+  });
+}
+function renderCalendar(){
+  buildCalChips();
+  var y = calCursor.getFullYear(), m = calCursor.getMonth();
+  var hoy = state.meta.hoy;
+  document.getElementById('calMonthTitle').innerHTML =
+    '<div class="cal-nav"><button data-act="cal-prev" aria-label="Mes anterior">‹</button><button data-act="cal-next" aria-label="Mes siguiente">›</button></div>' +
+    '<b style="font-family:var(--font-display);font-size:17px;text-transform:capitalize">' + calCursor.toLocaleDateString('es-MX',{month:'long',year:'numeric'}) + '</b>' +
+    '<span class="badge info">Hoy: ' + fmtDate(hoy) + '</span>' +
+    '<span style="margin-left:auto;font-family:var(--font-sans);font-size:12px;color:var(--ink-3);font-weight:400">P = planeados · R = reales · clic en un día para planear un camión</span>';
+  var dows = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  document.getElementById('calDows').innerHTML = dows.map(function(d){ return '<div class="cal-dow">' + d + '</div>'; }).join('');
+  var first = new Date(y, m, 1).getDay();
+  var offset = (first + 6) % 7;
+  var daysInMonth = new Date(y, m + 1, 0).getDate();
+  var cells = [];
+  for (var i = 0; i < offset; i++) cells.push('<div class="cal-cell other"></div>');
+  for (var d = 1; d <= daysInMonth; d++){
+    var ymdD = y + '-' + String(m+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    var planned = 0, real = 0, plannedKg = 0, realKg = 0;
+    state.camiones.forEach(function(t){
+      var keep = calFilter === 'todos' || t.streamId === calFilter;
+      if (!keep) return;
+      if (t.fechaPlaneada === ymdD){ planned++; plannedKg += t.kg; }
+      if (t.fechaReal === ymdD){ real++; realKg += t.kg; }
+    });
+    var isToday = ymdD === hoy;
+    var dotColor = planned === 0 ? 'transparent' : (real >= planned ? 'var(--accent)' : (real > 0 ? 'var(--gold)' : 'var(--warn)'));
+    var line = '';
+    if (planned > 0) line += '<div class="ct"><span class="ct-p">P</span><b class="ct-p">' + planned + '</b><span style="color:var(--ink-3)">(' + fmtT(plannedKg/1000) + 't)</span></div>';
+    if (real > 0) line += '<div class="ct"><span class="ct-r">R</span><b class="ct-r">' + real + '</b><span class="ct-r">(' + fmtT(realKg/1000) + 't)</span></div>';
+    if (planned > 0 && real === 0) line += '<div class="ct" style="color:var(--warn)">sin real</div>';
+    if (real > planned) line += '<div class="ct" style="color:var(--accent)">+adelantados</div>';
+    cells.push('<div class="cal-cell clickable' + (isToday ? ' today' : '') + '" data-act="cal-day" data-day="' + ymdD + '" tabindex="0" role="button" title="Planear un camión para el ' + fmtDate(ymdD) + '"><span class="delta" style="background:' + dotColor + '"></span><div class="dnum">' + d + '</div><div class="cal-trucks">' + line + '</div><span class="cal-plus">+</span></div>');
+  }
+  document.getElementById('calGrid').innerHTML = cells.join('');
+  var sp = 0, sr = 0, spKg = 0, srKg = 0, onTime = 0, arrived = 0, atrasados = 0;
+  state.camiones.forEach(function(t){
+    var keep = calFilter === 'todos' || t.streamId === calFilter;
+    if (!keep) return;
+    sp++; spKg += t.kg;
+    if (t.estado === 'recibido'){ sr++; srKg += t.kg; arrived++; if (t.fechaReal === t.fechaPlaneada) onTime++; }
+    if (t.estado === 'atrasado') atrasados++;
+  });
+  var punt = arrived > 0 ? Math.round(onTime / arrived * 100) : 0;
+  document.getElementById('calSummary').innerHTML =
+    '<div class="cs"><b>' + sp + '</b>planeados</div>' +
+    '<div class="cs"><b>' + sr + '</b>recibidos</div>' +
+    '<div class="cs"><b>' + fmtT(spKg/1000) + ' t</b>planeados</div>' +
+    '<div class="cs"><b>' + fmtT(srKg/1000) + ' t</b>recibidos</div>' +
+    '<div class="cs"><b>' + punt + '%</b>a tiempo</div>' +
+    '<div class="cs"><b>' + atrasados + '</b>atrasados (sin llegar)</div>';
+}
+function calMove(dir){
+  calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + dir, 1);
+  renderCalendar();
+}
+
+/* ---------- Recepción (camiones) ---------- */
+function insBadge(t){
+  var ins = t.inspeccion;
+  if (!ins || !ins.resultado) return '<span style="color:var(--ink-3);font-size:11.5px">—</span>';
+  var cls = ins.resultado === 'aceptado' ? 'ok' : (ins.resultado === 'parcial' ? 'mid' : 'warn');
+  var label = ins.resultado === 'aceptado' ? 'Aceptado' : (ins.resultado === 'parcial' ? 'Parcial' : 'Rechazado');
+  return '<span class="badge ' + cls + '">' + label + (ins.pctPina !== undefined && ins.pctPina !== null ? ' · ' + ins.pctPina + '% piña' : '') + '</span>';
+}
+function renderTrucks(){
+  var tbody = document.getElementById('tbody');
+  if (state.camiones.length === 0){
+    tbody.innerHTML = '<tr><td colspan="10"><div class="state"><h3>Sin camiones registrados</h3><p>Registra un camión con lo esencial (stream, kg y fecha). Los detalles finos (placa, pesaje bruto/tara, inspección de calidad) son opcionales.</p><button class="primary-btn" data-act="add-camion">+ Camión</button></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.camiones.map(function(t){
+    var s = streamById(t.streamId);
+    var rs = s ? rsById(s.rsId) : null;
+    var destino = rsById(t.rsDestinoId || (s ? s.rsId : ''));
+    var der = (s && t.rsDestinoId && t.rsDestinoId !== s.rsId && rs) ? '<div class="cell-sub">derivado de → ' + esc(rs.corto) + '</div>' : '';
+    var estMap = { recibido:{label:'Recibido', cls:'ok'}, atrasado:{label:'Atrasado', cls:'warn'}, planeado:{label:'Planeado', cls:'info'} };
+    var em = estMap[t.estado] || estMap.planeado;
+    var late = (t.estado === 'recibido' && t.diasRetraso > 0) ? ' <span style="color:var(--gold)">(+' + t.diasRetraso + 'd)</span>' : '';
+    var brutoTara = (t.pesoBruto !== null && t.pesoBruto !== undefined) ? fmtKg(t.pesoBruto) + '/' + fmtKg(t.pesoTara || 0) : '—';
+    var acciones = '<button class="small-btn ok" data-act="ticket-camion" data-id="' + t.id + '" title="Remisión de recepción">Ticket</button>';
+    if (t.estado !== 'recibido') acciones += '<button class="small-btn" data-act="recibir-camion" data-id="' + t.id + '">Recibir</button>';
+    acciones += '<button class="small-btn" data-act="edit-camion" data-id="' + t.id + '">Editar</button>';
+    acciones += '<button class="small-btn danger" data-act="del-camion" data-id="' + t.id + '">Eliminar</button>';
+    return '<tr>' +
+      '<td><div class="cell-name">' + esc(s ? s.nombre : '—') + '</div><div class="cell-sub">' + esc(s ? s.zona : '') + '</div></td>' +
+      '<td>' + esc(destino ? destino.corto : '—') + der + '</td>' +
+      '<td>' + esc(t.placa || '—') + '</td>' +
+      '<td class="num">' + fmtKg(t.kg) + '</td>' +
+      '<td class="num">' + brutoTara + '</td>' +
+      '<td>' + fmtDate(t.fechaPlaneada) + '</td>' +
+      '<td>' + fmtDate(t.fechaReal) + late + '</td>' +
+      '<td><span class="badge ' + em.cls + '">' + em.label + '</span></td>' +
+      '<td>' + insBadge(t) + '</td>' +
+      '<td><div class="row-actions">' + acciones + '</div></td>' +
+      '</tr>';
+  }).join('');
+}
+function delCamion(id){
+  if (!confirm('¿Eliminar este camión?')) return;
+  setLoading(true);
+  api('/api/camiones/' + id, { method:'DELETE' }).then(applyState).catch(function(e){ setLoading(false); toastErr(e); });
+}
+
+/* ---------- Consumos ---------- */
+function renderConsumos(){
+  var tbody = document.getElementById('consumosBody');
+  if (state.consumos.length === 0){
+    tbody.innerHTML = '<tr><td colspan="6"><div class="state"><h3>Sin consumos registrados</h3><p>Registra cuánto agave se consume para producción (kg y fecha).</p><button class="primary-btn" data-act="add-consumo">+ Consumo</button></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.consumos.map(function(c){
+    var s = streamById(c.streamId);
+    var rs = s ? rsById(s.rsId) : null;
+    var destino = rsById(c.rsDestinoId || (s ? s.rsId : ''));
+    var litros = destino ? Math.round((c.kg / 1000) * destino.rendimientoEfectivo) : 0;
+    return '<tr>' +
+      '<td>' + fmtDate(c.fecha) + '</td>' +
+      '<td><div class="cell-name">' + esc(s ? s.nombre : '—') + '</div></td>' +
+      '<td>' + esc(destino ? destino.corto : '—') + '</td>' +
+      '<td class="num">' + fmtKg(c.kg) + '</td>' +
+      '<td class="num">' + fmtL(litros) + '</td>' +
+      '<td><div class="row-actions"><button class="small-btn danger" data-act="del-consumo" data-id="' + c.id + '">Eliminar</button></div></td>' +
+      '</tr>';
+  }).join('');
+}
+function delConsumo(id){
+  if (!confirm('¿Eliminar este consumo?')) return;
+  setLoading(true);
+  api('/api/consumos/' + id, { method:'DELETE' }).then(applyState).catch(function(e){ setLoading(false); toastErr(e); });
+}
+
+/* ---------- Órdenes de producción (E2E) ---------- */
+function renderOrdenes(){
+  var tbody = document.getElementById('ordenesBody');
+  if (state.ordenes.length === 0){
+    tbody.innerHTML = '<tr><td colspan="9"><div class="state"><h3>Sin órdenes de producción</h3><p>Crea un lote con nombre, razón social y kg de agave. La calculadora estima el tequila esperado; registra el real para controlar el rendimiento.</p><button class="primary-btn" data-act="add-orden">+ Orden</button></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.ordenes.map(function(o){
+    var estMap = { planeada:{label:'Planeada', cls:'info'}, en_proceso:{label:'En proceso', cls:'mid'}, terminada:{label:'Terminada', cls:'ok'} };
+    var em = estMap[o.estado] || estMap.planeada;
+    var ef = o.eficiencia === null ? '—' : '<span style="color:' + (o.eficiencia >= 100 ? 'var(--accent)' : (o.eficiencia >= 90 ? 'var(--gold)' : 'var(--warn)')) + '">' + o.eficiencia + '%</span>';
+    return '<tr>' +
+      '<td><div class="cell-name">' + esc(o.nombre) + '</div><div class="cell-sub">' + fmtDate(o.fechaInicio) + '</div></td>' +
+      '<td>' + esc(o.rsNombre) + '</td>' +
+      '<td><span class="badge ' + em.cls + '">' + em.label + '</span></td>' +
+      '<td class="num">' + fmtKg(o.agaveKg) + '</td>' +
+      '<td class="num">' + fmtL(o.tequilaEsperadoL) + '</td>' +
+      '<td class="num">' + (o.tequilaRealL !== null && o.tequilaRealL !== undefined ? fmtL(o.tequilaRealL) : '—') + '</td>' +
+      '<td class="num">' + (o.rendimientoRealLt !== null ? fmtT(o.rendimientoRealLt) : '—') + '</td>' +
+      '<td class="num">' + ef + '</td>' +
+      '<td><div class="row-actions"><button class="small-btn" data-act="edit-orden" data-id="' + o.id + '">Editar</button><button class="small-btn danger" data-act="del-orden" data-id="' + o.id + '">Eliminar</button></div></td>' +
+      '</tr>';
+  }).join('');
+}
+function delOrden(id){
+  var o = ordenById(id);
+  if (!confirm('¿Eliminar la orden "' + o.nombre + '"?')) return;
+  setLoading(true);
+  api('/api/ordenes/' + id, { method:'DELETE' }).then(applyState).catch(function(e){ setLoading(false); toastErr(e); });
+}
+
+/* ---------- Merma (donut + distribución editable) ---------- */
+var CAUSES = [
+  { key:'hojas',  label:'Hojas y pencas (jimado)' },
+  { key:'danado', label:'Corazón dañado / plagas' },
+  { key:'fibra',  label:'Fibra y deshidratación' },
+  { key:'cortes', label:'Cortes y trozos no aptos' },
+  { key:'otros',  label:'Manejo y transporte' }
+];
+var CAUSE_COLORS = { hojas:'var(--accent)', danado:'var(--gold)', fibra:'var(--info)', cortes:'var(--violet)', otros:'var(--warn)' };
+function renderMerma(){
+  var el = document.getElementById('mermaWrap');
+  var totalMerma = state.resumen.mermaT;
+  var causas = state.parametrosCalculo.mermaCausas;
+  var suma = CAUSES.reduce(function(a,c){ return a + (causas[c.key] || 0); }, 0);
+  var donut = '';
+  if (totalMerma > 0){
+    var R = 74, C = 2*Math.PI*R, SW = 24, size = 200;
+    var s = '<svg viewBox="0 0 ' + size + ' ' + size + '" width="190" height="190" role="img" aria-label="Donut de merma por causa">';
+    s += '<circle cx="100" cy="100" r="' + R + '" fill="none" stroke="var(--surface-2)" stroke-width="' + SW + '"/>';
+    var acc = 0;
+    CAUSES.forEach(function(c){
+      var w = causas[c.key] || 0;
+      var frac = suma > 0 ? w / suma : 0;
+      if (frac <= 0) return;
+      var dash = (frac * C).toFixed(2);
+      var off = (-acc * C).toFixed(2);
+      s += '<circle cx="100" cy="100" r="' + R + '" fill="none" stroke="' + CAUSE_COLORS[c.key] + '" stroke-width="' + SW + '" stroke-dasharray="' + dash + ' ' + C.toFixed(2) + '" stroke-dashoffset="' + off + '" transform="rotate(-90 100 100)"><title>' + esc(c.label) + ': ' + fmtT(totalMerma * frac) + ' t</title></circle>';
+      acc += frac;
+    });
+    s += '<text x="100" y="94" text-anchor="middle" font-family="Georgia,serif" font-size="24" font-weight="700" fill="var(--ink)">' + fmtT(totalMerma) + ' t</text>';
+    s += '<text x="100" y="114" text-anchor="middle" font-size="11" fill="var(--ink-3)">merma total</text></svg>';
+    donut = '<div class="donut-box">' + s + '</div>';
+  } else {
+    donut = '<div class="state" style="padding:16px"><p>Sin merma todavía: registra camiones recibidos o ajusta la merma de tus streams.</p></div>';
+  }
+  var list = '<div class="donut-list">';
+  CAUSES.forEach(function(c){
+    var w = causas[c.key] || 0;
+    var p = suma > 0 ? Math.round(w / suma * 100) : 0;
+    list += '<div class="dl-row"><span class="sw" style="background:' + CAUSE_COLORS[c.key] + '"></span><span class="nm">' + c.label + '</span><span class="val">' + w + '%</span><span class="pct">' + p + '%</span></div>';
+  });
+  list += '</div>';
+  var editor = '<details class="fine" style="flex-basis:100%;margin-top:6px"><summary>Ajustar distribución de merma y grado de tequila (opcional)</summary><div class="fine-body">' +
+    '<div class="field-row">' + CAUSES.map(function(c){
+      return '<div class="param-inp"><label>' + esc(c.label) + ' (%)</label><input data-act="merma-input" data-key="' + c.key + '" type="number" min="0" max="100" step="0.5" value="' + (causas[c.key] || 0) + '"></div>';
+    }).join('') + '</div>' +
+    '<div class="param-inp" style="max-width:200px"><label>Grado de tequila (ABV %)</label><input data-act="grados-input" type="number" min="20" max="60" step="1" value="' + state.parametrosCalculo.gradosTequila + '"></div>' +
+    '<p class="hint" style="margin:0">La distribución debe sumar 100 %. Se guarda al salir de cada campo.</p>' +
+    '</div></details>';
+  el.innerHTML = '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;width:100%">' + donut + list + '</div>' + editor;
+}
+function saveMermaCause(key, val){
+  if (isNaN(val)){ loadState(); return; }
+  var mc = JSON.parse(JSON.stringify(state.parametrosCalculo.mermaCausas));
+  mc[key] = val;
+  api('/api/parametros', { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ mermaCausas: mc }) })
+    .then(applyState)
+    .catch(function(e){ toastErr(e); loadState(); });
+}
+function saveGrados(val){
+  if (isNaN(val)){ loadState(); return; }
+  api('/api/parametros', { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ gradosTequila: val }) })
+    .then(applyState)
+    .catch(function(e){ toastErr(e); loadState(); });
+}
+
+/* ---------- Respaldo / restauración ---------- */
+function renderBackups(){
+  var el = document.getElementById('backupsCard');
+  api('/api/backups').then(function(j){
+    if (!j.backups || j.backups.length === 0){
+      el.innerHTML = '<div class="state" style="padding:22px"><p>Aún no hay respaldos. Crea uno para poder restaurar los datos a este punto.</p></div>';
+      return;
+    }
+    el.innerHTML = '<div class="table-scroll"><table><thead><tr><th scope="col">Creado</th><th scope="col" class="num">Razones</th><th scope="col" class="num">Streams</th><th scope="col" class="num">Camiones</th><th scope="col" class="num">Consumos</th><th scope="col" class="num">Órdenes</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead><tbody>' +
+      j.backups.map(function(b){
+        return '<tr><td>' + esc(b.createdAt ? new Date(b.createdAt).toLocaleString('es-MX') : '—') + '</td>' +
+          '<td class="num">' + (b.counts.razones || 0) + '</td><td class="num">' + (b.counts.streams || 0) + '</td>' +
+          '<td class="num">' + (b.counts.camiones || 0) + '</td><td class="num">' + (b.counts.consumos || 0) + '</td><td class="num">' + (b.counts.ordenes || 0) + '</td>' +
+          '<td><div class="row-actions"><button class="small-btn ok" data-act="restore-backup" data-id="' + b.id + '">Restaurar</button><button class="small-btn danger" data-act="del-backup" data-id="' + b.id + '">Eliminar</button></div></td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }).catch(function(){
+    el.innerHTML = '<div class="state" style="padding:22px"><p>No se pudieron cargar los respaldos.</p></div>';
+  });
+}
+function createBackup(){
+  setLoading(true);
+  api('/api/backup', { method:'POST' }).then(function(j){
+    setLoading(false); renderBackups(); toast('Respaldo creado ✓');
+  }).catch(function(e){ setLoading(false); toastErr(e); });
+}
+function restoreBackup(id){
+  if (!confirm('¿Restaurar este respaldo? Se reemplazarán TODOS los datos actuales.')) return;
+  setLoading(true);
+  api('/api/backups/' + id + '/restore', { method:'POST' }).then(function(s){
+    state = s; render(); setLoading(false); toast('Respaldo restaurado ✓');
+  }).catch(function(e){ setLoading(false); toastErr(e); });
+}
+function delBackup(id){
+  if (!confirm('¿Eliminar este respaldo?')) return;
+  api('/api/backups/' + id, { method:'DELETE' }).then(function(){
+    renderBackups(); toast('Respaldo eliminado');
+  }).catch(function(e){ toastErr(e); });
+}
+
+/* ---------- Modal ---------- */
+var TITLES = { rs:'Razón social', stream:'Stream', camion:'Camión', consumo:'Consumo', recibir:'Recibir camión', orden:'Orden de producción' };
+var ETAPA_LABELS = { coccion:'Cocción (kg salida)', molienda:'Molienda (kg jugo)', fermentacion:'Fermentación (L 100%)', destilacion:'Destilación (L 100%)' };
+var ETAPA_KEYS = ['coccion','molienda','fermentacion','destilacion'];
+
+function openModal(type, id, prefill){
+  if (type === 'stream' && state.razonesSociales.length === 0){ toast('Primero crea una razón social'); return; }
+  if ((type === 'camion' || type === 'consumo' || type === 'recibir' || type === 'orden') && (type === 'orden' ? state.razonesSociales.length === 0 : state.streams.length === 0)){
+    toast(type === 'orden' ? 'Primero crea una razón social' : 'Primero crea un stream'); return;
+  }
+  modal = { type: type, editId: (type === 'recibir' ? id : (id || null)), recibirId: (type === 'recibir' ? id : null), prefill: prefill || null };
+  buildModal();
+  document.getElementById('modalBackdrop').classList.add('open');
+  var first = document.querySelector('#modalBody input, #modalBody select');
+  if (first) setTimeout(function(){ first.focus(); }, 40);
+}
+function closeModal(){ document.getElementById('modalBackdrop').classList.remove('open'); }
+
+function field(id, label, html, hint){
+  return '<div class="field" data-field="' + id + '"><label for="' + id + '">' + label + '</label>' + html +
+    '<span class="err" id="err-' + id + '"></span>' + (hint ? '<span class="hint">' + hint + '</span>' : '') + '</div>';
+}
+function inp(id, type, value, ph){ return '<input id="' + id + '" type="' + type + '" value="' + esc(value === null || value === undefined ? '' : value) + '" placeholder="' + esc(ph || '') + '" step="any">'; }
+function sel(id, opts, selected){ return '<select id="' + id + '">' + opts.map(function(o){ return '<option value="' + o[0] + '"' + (o[0] === selected ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>'; }
+function rdonly(text){ return '<div class="field"><label>&nbsp;</label><input type="text" value="' + esc(text || '') + '" disabled style="background:var(--surface-2)"></div>'; }
+function fine(title, inner){ return '<details class="fine"><summary>' + esc(title) + '</summary><div class="fine-body">' + inner + '</div></details>'; }
+
+function streamOptions(selected){ return state.streams.map(function(x){ var rs = rsById(x.rsId); return [x.id, x.nombre + ' → ' + (rs ? rs.corto : '?')]; }); }
+function rsOptions(selected){ return state.razonesSociales.map(function(x){ return [x.id, x.corto + ' · ' + x.nombre]; }); }
+
+function buildModal(){
+  var t = modal.type;
+  document.getElementById('modalTitle').textContent = (modal.editId ? 'Editar ' : 'Registrar ') + TITLES[t].toLowerCase();
+  document.getElementById('regSubmit').textContent = (modal.editId ? 'Guardar cambios' : 'Guardar');
+  var seg = document.getElementById('modeSeg');
+  seg.hidden = (t === 'recibir' || t === 'orden');
+  seg.querySelectorAll('button').forEach(function(b){
+    var on = b.getAttribute('data-mode') === t;
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.disabled = !!modal.editId;
+  });
+
+  var body = document.getElementById('modalBody');
+  var h = '';
+  if (t === 'rs'){
+    var r = modal.editId ? rsById(modal.editId) : null;
+    h += field('nombre','Nombre legal','<input id="nombre" type="text" value="' + esc(r ? r.nombre : '') + '" placeholder="Ej. Tequila Don Cenobio, S.A. de C.V.">');
+    h += '<div class="field-row">' + field('corto','Nombre corto', inp('corto','text', r ? r.corto : '', 'Ej. RS A')) + '</div>';
+    var p = r ? r.parametros : { coccionPerdida:8, moliendaRendimiento:60, conversionMostoAlcohol:0.16, destilacionRendimiento:70, anejamientoPerdida:2 };
+    var params = PARAM_KEYS.map(function(k){
+      return '<div class="param-inp"><label>' + PARAM_LABELS[k] + '</label><input id="p-' + k + '" type="number" step="any" value="' + esc(p[k]) + '"></div>';
+    }).join('');
+    h += fine('Parámetros de rendimiento (opcional — si no los tocas, se usa el preset Base)', '<div class="calc-grid" style="grid-template-columns:1fr 1fr">' + params + '</div><p class="hint" style="margin:0">Rendimiento resultante: <b id="rsLtPreview">—</b> L/t</p>');
+  } else if (t === 'stream'){
+    var s = modal.editId ? streamById(modal.editId) : null;
+    h += '<div class="field-row">' + field('nombre','Nombre del stream', inp('nombre','text', s ? s.nombre : '', 'Ej. Stream 1 · Los Altos')) + '</div>';
+    h += field('rsId','Razón social', sel('rsId', rsOptions(), s ? s.rsId : (state.razonesSociales[0] ? state.razonesSociales[0].id : '')));
+    h += '<div class="field-row">' + field('objetivoT','Objetivo de la campaña (t)', inp('objetivoT','number', s ? s.objetivoT : '', '70')) + '</div>';
+    h += fine('Detalles finos (opcional)', '<div class="field-row">' + field('zona','Zona de origen', inp('zona','text', s ? s.zona : '', 'Ej. Los Altos')) + field('mermaRate','Merma de jimado (%) — default 10', inp('mermaRate','number', s ? Math.round(s.mermaRate*100) : '', '10')) + '</div>');
+  } else if (t === 'camion'){
+    var c = modal.editId ? state.camiones.filter(function(x){ return x.id === modal.editId; })[0] : null;
+    var pStream = (modal.prefill && modal.prefill.streamId) || (c ? c.streamId : (state.streams[0] ? state.streams[0].id : ''));
+    var pPlaneada = (modal.prefill && modal.prefill.fechaPlaneada) || (c ? c.fechaPlaneada : state.meta.hoy);
+    var sDef = streamById(pStream);
+    var pDestino = (c && c.rsDestinoId) || (sDef ? sDef.rsId : (state.razonesSociales[0] ? state.razonesSociales[0].id : ''));
+    h += '<div class="field-row">' + field('streamId','Stream', sel('streamId', streamOptions(), pStream)) + field('rsDestinoId','Razón social destino', sel('rsDestinoId', rsOptions(), pDestino)) + '</div>';
+    h += '<div class="field-row">' + field('kg','Peso neto de agave (kg)', inp('kg','number', c ? c.kg : '', '10000')) + field('fechaPlaneada','Fecha planeada', inp('fechaPlaneada','date', pPlaneada)) + '</div>';
+    var ins = c && c.inspeccion ? c.inspeccion : {};
+    h += fine('Detalles finos (opcional)', '' +
+      '<div class="field-row">' + field('placa','Placa del camión', inp('placa','text', c ? (c.placa || '') : '', 'ABC-123')) +
+      field('fechaReal','Fecha real (si ya llegó)', inp('fechaReal','date', c && c.fechaReal ? c.fechaReal : '')) + '</div>' +
+      '<div class="field-row">' + field('pesoBruto','Peso bruto (kg)', inp('pesoBruto','number', c ? (c.pesoBruto || '') : '', '')) +
+      field('pesoTara','Peso tara (kg)', inp('pesoTara','number', c ? (c.pesoTara || '') : '', '')) + '</div>' +
+      '<p class="hint" style="margin:0">Si llenas bruto y tara, el peso neto se calcula como bruto − tara.</p>' +
+      '<div class="field-row">' + field('insResultado','Resultado de inspección', sel('insResultado', [['aceptado','Aceptado'],['parcial','Parcial'],['rechazado','Rechazado']], ins.resultado || 'aceptado')) +
+      field('pctPina','Piña útil (%)', inp('pctPina','number', ins.pctPina !== undefined && ins.pctPina !== null ? ins.pctPina : '', '85')) + '</div>' +
+      field('nota','Nota', inp('nota','text', ins.nota || '', 'Observaciones')));
+  } else if (t === 'consumo'){
+    var pConsStream = (modal.prefill && modal.prefill.streamId) || (state.streams[0] ? state.streams[0].id : '');
+    var csStream = streamById(pConsStream);
+    var consDest = csStream ? csStream.rsId : (state.razonesSociales[0] ? state.razonesSociales[0].id : '');
+    h += '<div class="field-row">' + field('streamId','Stream', sel('streamId', streamOptions(), pConsStream)) + field('rsDestinoId','Razón social destino', sel('rsDestinoId', rsOptions(), consDest)) + '</div>';
+    h += '<div class="field-row">' + field('kg','Agave consumido (kg)', inp('kg','number', '', '5000')) + field('fecha','Fecha de consumo', inp('fecha','date', state.meta.hoy)) + '</div>';
+  } else if (t === 'recibir'){
+    var c2 = state.camiones.filter(function(x){ return x.id === modal.recibirId; })[0];
+    var s2 = c2 ? streamById(c2.streamId) : null;
+    var c2Dest = (c2 && c2.rsDestinoId) || (s2 ? s2.rsId : (state.razonesSociales[0] ? state.razonesSociales[0].id : ''));
+    h += '<div class="field-row">' + rdonly(s2 ? s2.nombre : '') + rdonly(c2 ? String(fmtKg(c2.kg)) + ' kg' : '') + '</div>';
+    h += '<div class="field-row">' + field('rsDestinoId','Razón social destino', sel('rsDestinoId', rsOptions(), c2Dest)) + field('fechaReal','Fecha real de llegada', inp('fechaReal','date', state.meta.hoy)) + '</div>';
+    h += fine('Inspección de calidad (opcional)', '<div class="field-row">' +
+      field('insResultado','Resultado', sel('insResultado', [['aceptado','Aceptado'],['parcial','Parcial'],['rechazado','Rechazado']], 'aceptado')) +
+      field('pctPina','Piña útil (%)', inp('pctPina','number', '', '85')) + '</div>' +
+      field('nota','Nota', inp('nota','text', '', '')));
+    h += '<p class="hint" style="margin:0">Al guardar, el camión pasa a <b>recibido</b>; la merma real usa el % de piña si lo registras.</p>';
+  } else if (t === 'orden'){
+    var o = modal.editId ? ordenById(modal.editId) : null;
+    h += '<div class="field-row">' + field('nombre','Nombre de la orden', inp('nombre','text', o ? o.nombre : '', 'Ej. Lote 01 · Los Altos')) + '</div>';
+    h += '<div class="field-row">' + field('rsId','Razón social', sel('rsId', rsOptions(), o ? o.rsId : (state.razonesSociales[0] ? state.razonesSociales[0].id : ''))) +
+      field('estado','Estado', sel('estado', [['planeada','Planeada'],['en_proceso','En proceso'],['terminada','Terminada']], o ? o.estado : 'planeada')) + '</div>';
+    h += '<div class="field-row">' + field('agaveKg','Agave asignado (kg)', inp('agaveKg','number', o ? o.agaveKg : '', '10000')) + field('fechaInicio','Fecha de inicio', inp('fechaInicio','date', o ? o.fechaInicio : state.meta.hoy)) + '</div>';
+    h += '<div class="esp-line"><span>Tequila esperado (según calculadora)</span><b id="oEsperadoL">—</b></div>';
+    h += fine('Detalles finos (opcional): control por etapa real vs esperado', '' +
+      '<div class="esp-line" id="oEtapasEsp"></div>' +
+      ETAPA_KEYS.map(function(k){
+        var re = o && o.etapas ? o.etapas.filter(function(x){ return x.clave === k; })[0] : null;
+        return '<div class="field-row" style="align-items:end">' + field('et-' + k, ETAPA_LABELS[k], inp('et-' + k,'number', re && re.salidaL !== undefined && re.salidaL !== null ? re.salidaL : (re && re.salidaKg !== undefined && re.salidaKg !== null ? re.salidaKg : ''), '')) + '</div>';
+      }).join('') +
+      '<div class="field-row">' + field('tequilaRealL','Tequila real producido (L)', inp('tequilaRealL','number', o && o.tequilaRealL !== null && o.tequilaRealL !== undefined ? o.tequilaRealL : '', '')) + field('fechaFin','Fecha de fin', inp('fechaFin','date', o && o.fechaFin ? o.fechaFin : '')) + '</div>');
+  }
+  body.innerHTML = h;
+  if (t === 'rs') updateRsLtPreview();
+  if (t === 'orden') updateOrdenEsperado();
+  if (t === 'camion' || t === 'consumo'){
+    var stSel = document.getElementById('streamId');
+    if (stSel) stSel.addEventListener('change', function(){
+      var destSel = document.getElementById('rsDestinoId');
+      var s = streamById(stSel.value);
+      if (destSel && s) destSel.value = s.rsId;
+    });
+  }
+}
+function updateRsLtPreview(){
+  var p = {};
+  PARAM_KEYS.forEach(function(k){ p[k] = parseFloat((document.getElementById('p-' + k) || { value:NaN }).value); });
+  if (PARAM_KEYS.some(function(k){ return isNaN(p[k]); })){ document.getElementById('rsLtPreview').textContent = '—'; return; }
+  var g = state.parametrosCalculo.gradosTequila;
+  document.getElementById('rsLtPreview').textContent = fmtT(cascadeClient(p, g, 1).fin) + ' L/t';
+}
+function updateOrdenEsperado(){
+  var rsId = (document.getElementById('rsId') || { value:'' }).value;
+  var agave = parseFloat((document.getElementById('agaveKg') || { value:NaN }).value);
+  var rs = rsById(rsId);
+  var elEsp = document.getElementById('oEsperadoL');
+  var elEtapas = document.getElementById('oEtapasEsp');
+  if (!rs || isNaN(agave) || agave <= 0){
+    if (elEsp) elEsp.textContent = '—';
+    if (elEtapas) elEtapas.innerHTML = 'Introduce agave para ver el esperado por etapa.';
+    return;
+  }
+  var g = state.parametrosCalculo.gradosTequila;
+  var cas = cascadeClient(rs.parametros, g, agave / 1000);
+  if (elEsp) elEsp.textContent = fmtL(cas.fin) + ' L';
+  if (elEtapas) elEtapas.innerHTML = 'Esperado: cocción ' + fmtT(cas.cocida) + ' kg · molienda ' + fmtT(cas.mosto) + ' kg · fermentación ' + fmtT(cas.alcohol) + ' L · destilación ' + fmtT(cas.teq100) + ' L';
+}
+
+function clearErr(){ document.querySelectorAll('.field.invalid').forEach(function(f){ f.classList.remove('invalid'); }); }
+function setErr(name, on){ var f = document.querySelector('[data-field="' + name + '"]'); if (f) f.classList.toggle('invalid', on); }
+function val(f){ return (document.getElementById(f) || { value:'' }).value; }
+function num(f){ return Number(val(f)); }
+function validate(){
+  var ok = true;
+  clearErr();
+  function req(f){ if (!val(f)){ setErr(f, true); ok = false; } }
+  if (modal.type === 'rs'){ req('nombre'); req('corto'); }
+  else if (modal.type === 'stream'){ req('nombre'); if (!(num('objetivoT') > 0)){ setErr('objetivoT', true); ok = false; } }
+  else if (modal.type === 'camion'){ req('fechaPlaneada'); if (!(num('kg') >= 100)){ setErr('kg', true); ok = false; } var fr = val('fechaReal'); if (fr && !/^\d{4}-\d{2}-\d{2}$/.test(fr)){ setErr('fechaReal', true); ok = false; } }
+  else if (modal.type === 'consumo'){ req('fecha'); if (!(num('kg') >= 100)){ setErr('kg', true); ok = false; } }
+  else if (modal.type === 'recibir'){ req('fechaReal'); }
+  else if (modal.type === 'orden'){ req('nombre'); if (!(num('agaveKg') >= 100)){ setErr('agaveKg', true); ok = false; } }
+  return ok;
+}
+
+function buildPayload(){
+  var p = {};
+  if (modal.type === 'rs'){
+    p = { nombre: val('nombre').trim(), corto: val('corto').trim() };
+    var pp = {};
+    PARAM_KEYS.forEach(function(k){ pp[k] = parseFloat(val('p-' + k)); });
+    if (!PARAM_KEYS.some(function(k){ return isNaN(pp[k]); })) p.parametros = pp;
+  }
+  else if (modal.type === 'stream'){
+    p = { nombre: val('nombre').trim(), rsId: val('rsId'), objetivoT: num('objetivoT') };
+    var zona = val('zona').trim(); if (zona) p.zona = zona;
+    var mr = val('mermaRate'); if (mr !== '') p.mermaRate = num('mermaRate') / 100;
+  }
+  else if (modal.type === 'camion'){
+    var fr = val('fechaReal');
+    p = { streamId: val('streamId'), rsDestinoId: val('rsDestinoId'), kg: Math.round(num('kg')), fechaPlaneada: val('fechaPlaneada'), fechaReal: fr || null };
+    var placa = val('placa').trim(); if (placa) p.placa = placa;
+    var pb = val('pesoBruto'), pt = val('pesoTara');
+    if (pb !== '' && pt !== ''){ p.pesoBruto = num('pesoBruto'); p.pesoTara = num('pesoTara'); }
+    var inr = val('insResultado'); if (inr){ p.inspeccion = { resultado: inr }; var pi = val('pctPina'); if (pi !== '') p.inspeccion.pctPina = num('pctPina'); var nt = val('nota').trim(); if (nt) p.inspeccion.nota = nt; }
+  }
+  else if (modal.type === 'consumo'){ p = { streamId: val('streamId'), rsDestinoId: val('rsDestinoId'), kg: Math.round(num('kg')), fecha: val('fecha') }; }
+  else if (modal.type === 'recibir'){
+    p = { fechaReal: val('fechaReal'), rsDestinoId: val('rsDestinoId') };
+    var inr2 = val('insResultado'); if (inr2){ p.inspeccion = { resultado: inr2 }; var pi2 = val('pctPina'); if (pi2 !== '') p.inspeccion.pctPina = num('pctPina'); var nt2 = val('nota').trim(); if (nt2) p.inspeccion.nota = nt2; }
+  }
+  else if (modal.type === 'orden'){
+    p = { nombre: val('nombre').trim(), rsId: val('rsId'), estado: val('estado'), agaveKg: Math.round(num('agaveKg')), fechaInicio: val('fechaInicio') };
+    var ff = val('fechaFin'); if (ff) p.fechaFin = ff;
+    var etapas = [];
+    ETAPA_KEYS.forEach(function(k){
+      var v = val('et-' + k);
+      if (v !== ''){
+        var etapa = { clave: k };
+        var n = num('et-' + k);
+        if (k === 'fermentacion' || k === 'destilacion') etapa.salidaL = n; else etapa.salidaKg = n;
+        etapas.push(etapa);
+      }
+    });
+    if (etapas.length) p.etapas = etapas;
+    var tr = val('tequilaRealL'); if (tr !== '') p.tequilaRealL = num('tequilaRealL');
+  }
+  return p;
+}
+
+function submitReg(){
+  if (!validate()){ toast('Revisa los campos marcados'); return; }
+  var p = buildPayload();
+  var url, method;
+  if (modal.type === 'rs'){ url = modal.editId ? '/api/razones/' + modal.editId : '/api/razones'; method = modal.editId ? 'PATCH' : 'POST'; }
+  else if (modal.type === 'stream'){ url = modal.editId ? '/api/streams/' + modal.editId : '/api/streams'; method = modal.editId ? 'PATCH' : 'POST'; }
+  else if (modal.type === 'camion'){ url = modal.editId ? '/api/camiones/' + modal.editId : '/api/camiones'; method = modal.editId ? 'PATCH' : 'POST'; }
+  else if (modal.type === 'consumo'){ url = '/api/streams/' + p.streamId + '/consumo'; method = 'POST'; }
+  else if (modal.type === 'recibir'){ url = '/api/camiones/' + modal.recibirId + '/recibir'; method = 'POST'; }
+  else if (modal.type === 'orden'){ url = modal.editId ? '/api/ordenes/' + modal.editId : '/api/ordenes'; method = modal.editId ? 'PATCH' : 'POST'; }
+
+  setLoading(true);
+  api(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) })
+    .then(function(s){
+      state = s; render(); setLoading(false); closeModal();
+      toast('Guardado ✓');
+    })
+    .catch(function(e){ setLoading(false); toastErr(e); });
+}
+
+/* ---------- Acciones globales ---------- */
+function resetAll(){
+  if (!confirm('¿VACIAR todos los datos (razones, streams, camiones, consumos, órdenes)? Esta acción no se puede deshacer.')) return;
+  setLoading(true);
+  api('/api/reset', { method:'POST' }).then(function(s){
+    state = s; render(); setLoading(false); toast('Datos vaciados');
+  }).catch(function(e){ setLoading(false); toastErr(e); });
+}
+function exportCsv(){ window.location.href = '/api/export.csv'; }
+
+/* ---------- Toast ---------- */
+var toastTimer = null;
+function toast(msg, isErr){
+  var el = document.getElementById('toast');
+  el.classList.toggle('err', !!isErr);
+  el.innerHTML = (isErr ? '⚠ ' : '✓ ') + esc(msg);
+  el.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 3200);
+}
+function toastErr(e){ toast((e && e.message) ? e.message : 'Error al guardar', true); }
+
+/* ---------- Wiring ---------- */
+document.addEventListener('DOMContentLoaded', function(){
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('[data-act]');
+    if (!b) return;
+    var act = b.getAttribute('data-act');
+    var id = b.getAttribute('data-id');
+    switch (act){
+      case 'retry': loadState(); break;
+      case 'export': exportCsv(); break;
+      case 'add-rs': openModal('rs'); break;
+      case 'add-stream': openModal('stream'); break;
+      case 'add-camion': openModal('camion'); break;
+      case 'add-consumo': openModal('consumo'); break;
+      case 'add-orden': openModal('orden'); break;
+      case 'edit-rs': openModal('rs', id); break;
+      case 'del-rs': delRs(id); break;
+      case 'edit-stream': openModal('stream', id); break;
+      case 'del-stream': delStream(id); break;
+      case 'add-llegada': openModal('camion', null, { streamId: id }); break;
+      case 'add-cons-stream': openModal('consumo', null, { streamId: id }); break;
+      case 'edit-camion': openModal('camion', id); break;
+      case 'del-camion': delCamion(id); break;
+      case 'recibir-camion': openModal('recibir', id); break;
+      case 'ticket-camion': window.open('/api/camiones/' + id + '/ticket', '_blank'); break;
+      case 'del-consumo': delConsumo(id); break;
+      case 'edit-orden': openModal('orden', id); break;
+      case 'del-orden': delOrden(id); break;
+      case 'cal-day': openModal('camion', null, { fechaPlaneada: b.getAttribute('data-day') }); break;
+      case 'cal-prev': calMove(-1); break;
+      case 'cal-next': calMove(1); break;
+      case 'preset': applyPreset(b.getAttribute('data-rs'), b.getAttribute('data-preset')); break;
+      case 'backup-create': createBackup(); break;
+      case 'restore-backup': restoreBackup(id); break;
+      case 'del-backup': delBackup(id); break;
+      case 'reset-all': resetAll(); break;
+      default: break;
+    }
+  });
+  // live preview de parámetros (input) + guardado (focusout)
+  document.addEventListener('input', function(e){
+    var p = e.target.closest('[data-act="param-input"]');
+    if (p) liveParamPreview(p.getAttribute('data-rs'));
+    if (e.target.id === 'p-coccionPerdida' || e.target.id === 'p-moliendaRendimiento' || e.target.id === 'p-conversionMostoAlcohol' || e.target.id === 'p-destilacionRendimiento' || e.target.id === 'p-anejamientoPerdida') updateRsLtPreview();
+    if (e.target.id === 'agaveKg' || e.target.id === 'rsId') updateOrdenEsperado();
+  });
+  document.addEventListener('focusout', function(e){
+    var p = e.target.closest('[data-act="param-input"]');
+    if (p) saveParam(p.getAttribute('data-rs'), p.getAttribute('data-key'), parseFloat(p.value));
+    var m = e.target.closest('[data-act="merma-input"]');
+    if (m) saveMermaCause(m.getAttribute('data-key'), parseFloat(m.value));
+    var g = e.target.closest('[data-act="grados-input"]');
+    if (g) saveGrados(parseFloat(g.value));
+  });
+  document.addEventListener('keydown', function(e){
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.getAttribute && e.target.getAttribute('data-act') === 'cal-day'){
+      e.preventDefault(); openModal('camion', null, { fechaPlaneada: e.target.getAttribute('data-day') });
+    }
+    if (e.key === 'Escape') closeModal();
+  });
+
+  calMount(document.getElementById('calChips'));
+  document.getElementById('modeSeg').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-mode]'); if (!b) return;
+    openModal(b.getAttribute('data-mode'));
+  });
+  document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+  document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+  document.getElementById('regForm').addEventListener('submit', function(e){ e.preventDefault(); submitReg(); });
+  document.getElementById('modalBody').addEventListener('blur', function(e){
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') validate();
+  }, true);
+  document.getElementById('modalBackdrop').addEventListener('click', function(e){ if (e.target === this) closeModal(); });
+  document.querySelectorAll('.nav-link[href^="#"]').forEach(function(link){
+    link.addEventListener('click', function(){
+      document.querySelectorAll('.nav-link[href^="#"]').forEach(function(x){ x.classList.remove('active'); });
+      link.classList.add('active');
+    });
+  });
+  loadState();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Flujo de agave: 3 streams a 2 razones sociales",
+    "quality_profile": "showcase",
+    "viewBox": [
+      940,
+      760
+    ]
+  },
+  "stages": [
+    {
+      "label": "Streams de ingreso"
+    },
+    {
+      "label": "Razones sociales"
+    },
+    {
+      "label": "Producción"
+    },
+    {
+      "label": "Resultado"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "stream1",
+      "type": "backend",
+      "label": "Stream 1 · Los Altos",
+      "sublabel": "→ Razón Social A",
+      "stage": 0,
+      "row": 0,
+      "tag": "camiones asíncronos",
+      "width": 150
+    },
+    {
+      "id": "stream3",
+      "type": "backend",
+      "label": "Stream 3 · Sierra",
+      "sublabel": "→ Razón Social A",
+      "stage": 0,
+      "row": 1,
+      "tag": "camiones asíncronos",
+      "width": 150
+    },
+    {
+      "id": "stream2",
+      "type": "backend",
+      "label": "Stream 2 · Amatitán",
+      "sublabel": "→ Razón Social B",
+      "stage": 0,
+      "row": 2,
+      "tag": "camiones asíncronos",
+      "width": 150
+    },
+    {
+      "id": "rsA",
+      "type": "database",
+      "label": "Razón Social A",
+      "sublabel": "Campaña A · 120 t",
+      "stage": 1,
+      "row": 0,
+      "tag": "entidad legal",
+      "width": 150
+    },
+    {
+      "id": "rsB",
+      "type": "database",
+      "label": "Razón Social B",
+      "sublabel": "Campaña B · 80 t",
+      "stage": 1,
+      "row": 2,
+      "tag": "entidad legal",
+      "width": 150
+    },
+    {
+      "id": "prodA",
+      "type": "backend",
+      "label": "Producción A",
+      "sublabel": "aprovechado → tequila",
+      "stage": 2,
+      "row": 0,
+      "tag": "consume",
+      "width": 150
+    },
+    {
+      "id": "prodB",
+      "type": "backend",
+      "label": "Producción B",
+      "sublabel": "aprovechado → tequila",
+      "stage": 2,
+      "row": 2,
+      "tag": "consume",
+      "width": 150
+    },
+    {
+      "id": "doneA",
+      "type": "cloud",
+      "label": "Campaña A completa",
+      "sublabel": "agave 100% consumido",
+      "stage": 3,
+      "row": 0,
+      "tag": "éxito",
+      "width": 170
+    },
+    {
+      "id": "doneB",
+      "type": "cloud",
+      "label": "Campaña B completa",
+      "sublabel": "agave 100% consumido",
+      "stage": 3,
+      "row": 2,
+      "tag": "éxito",
+      "width": 170
+    }
+  ],
+  "flows": [
+    {
+      "from": "stream1",
+      "to": "rsA",
+      "label": "recibido",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "from": "stream3",
+      "to": "rsA",
+      "label": "recibido",
+      "variant": "default"
+    },
+    {
+      "from": "stream2",
+      "to": "rsB",
+      "label": "recibido",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "from": "rsA",
+      "to": "prodA",
+      "label": "aprovechado",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelDy": 53
+    },
+    {
+      "from": "rsB",
+      "to": "prodB",
+      "label": "aprovechado",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "from": "prodA",
+      "to": "doneA",
+      "label": "tequila",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "from": "prodB",
+      "to": "doneB",
+      "label": "tequila",
+      "variant": "emphasis",
+      "route": "straight"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Asincronía de ingresos",
+      "items": [
+        "Cada stream recibe camiones de agave de forma asíncrona",
+        "Los camiones no son puntuales: se registra planeado vs real",
+        "Cada stream acumula múltiples ingresos hasta completar la campaña"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Razones sociales separadas",
+      "items": [
+        "Cada stream alimenta la campaña general de una sola razón social",
+        "El agave tracker no se mezcla con la entidad legal",
+        "Streams 1 y 3 → Razón Social A · Stream 2 → Razón Social B"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Criterio de éxito",
+      "items": [
+        "La campaña está lista cuando se consume todo el agave",
+        "De lo aprovechado se espera tequila (rendimiento L/t)",
+        "La merma reduce el agave útil para producción"
+      ]
+    }
+  ]
+}
