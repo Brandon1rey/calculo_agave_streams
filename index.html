@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agave Cía · Recepción · Producción · Calculadora</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1F6A44">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%231F6A44'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='%23F4F1E8' font-family='Georgia'>A</text></svg>">
 <style>
 :root{
@@ -51,6 +53,11 @@ a{color:inherit;text-decoration:none}
 .api-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-border);padding:5px 10px;border-radius:999px;white-space:nowrap}
 .api-pill .pdot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.6s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.api-pill.warn{color:var(--warn);background:var(--warn-soft);border-color:var(--warn-border)}
+.api-pill.warn .pdot{background:var(--warn);animation:none}
+.api-pill.busy{color:var(--gold);background:var(--gold-soft);border-color:var(--gold-border)}
+.api-pill.busy .pdot{background:var(--gold);animation:pulse 1s infinite}
+body.offline [data-act^="add-"],body.offline [data-act^="edit-"],body.offline [data-act^="del-"],body.offline [data-act^="recibir-"],body.offline [data-act="reset-all"],body.offline [data-act="backup-create"],body.offline [data-act="restore-backup"],body.offline [data-act="del-backup"],body.offline [data-act="export"],body.offline [data-act="ticket-camion"],body.offline [data-act="param-input"],body.offline [data-act="merma-input"],body.offline [data-act="grados-input"],body.offline #regSubmit{pointer-events:none;opacity:.45}
 .user{display:flex;align-items:center;gap:10px;padding-left:16px;border-left:1px solid var(--line)}
 .avatar{width:36px;height:36px;border-radius:50%;background:var(--gold-soft);color:var(--gold);border:1px solid var(--gold-border);display:grid;place-items:center;font-weight:700;font-size:13px}
 .user-meta{line-height:1.2}.user-meta b{display:block;font-size:13px}.user-meta span{font-size:11px;color:var(--ink-3)}
@@ -245,6 +252,7 @@ details.fine .fine-body{display:flex;flex-direction:column;gap:12px;margin-top:1
     <header class="topbar">
       <div class="topbar-title">Recepción de materia prima y producción <small>Reemplaza tus tablas macro de Excel</small></div>
       <span class="api-pill" id="apiPill"><span class="pdot"></span>API en línea</span>
+      <span class="api-pill" id="netPill"><span class="pdot"></span>En línea</span>
       <div class="user"><div class="avatar" aria-hidden="true">JB</div><div class="user-meta"><b>Encargado</b><span>Recepción · Producción</span></div></div>
     </header>
 
@@ -325,6 +333,7 @@ details.fine .fine-body{display:flex;flex-direction:column;gap:12px;margin-top:1
 
 <div id="toast" role="status" aria-live="polite"></div>
 
+<script src="/offline.js"></script>
 <script>
 'use strict';
 /* ===== Cliente API-first. Sin datos mock. Entradas generalizadas: los
@@ -360,10 +369,41 @@ function destinosHtml(s){
   return parts.join(' · ') || '—';
 }
 
+/* ---------- Offline (solo lectura sin conexión) ---------- */
+var OFF = (typeof window !== 'undefined' && window.AgaveOffline) ? window.AgaveOffline : null;
+var netFetch = (OFF && typeof OFF.wrapFetch === 'function') ? OFF.wrapFetch(fetch) : fetch;
+var readOnly = false;
+
+function updateNetPill(mode){
+  var el = document.getElementById('netPill');
+  if (!el) return;
+  el.classList.remove('warn', 'busy');
+  if (mode === 'offline'){ el.classList.add('warn'); el.innerHTML = '<span class="pdot"></span>Sin conexión · solo lectura'; }
+  else if (mode === 'busy'){ el.classList.add('busy'); el.innerHTML = '<span class="pdot"></span>Sincronizando…'; }
+  else { el.innerHTML = '<span class="pdot"></span>En línea'; }
+}
+function offlineNotice(){
+  var hora = (OFF && OFF.lastSyncLabel) ? OFF.lastSyncLabel() : '';
+  return 'Sin conexión · mostrando datos guardados' + (hora ? ' de las ' + hora : '') + ' (solo lectura)';
+}
+function setReadOnly(on, msg){
+  readOnly = !!on;
+  document.body.classList.toggle('offline', readOnly);
+  updateNetPill(readOnly ? 'offline' : 'online');
+  if (readOnly) showError(msg || offlineNotice());
+  else hideError();
+}
+
 function api(path, opts){
-  return fetch(path, opts).then(function(r){
+  return netFetch(path, opts).then(function(r){
+    var fromCache = !!r.offline;
+    var cachedAt = r.cachedAt;
     return r.json().then(function(j){
       if (!r.ok) throw new Error(j && j.error ? j.error : ('HTTP ' + r.status));
+      if (j && typeof j === 'object' && !Array.isArray(j)){
+        if (fromCache) j.__offline = true;
+        if (cachedAt) j.__cachedAt = cachedAt;
+      }
       return j;
     });
   });
@@ -381,9 +421,12 @@ function loadState(){
   setLoading(true); hideError();
   return api('/api/state').then(function(s){
     state = s;
-    if (!calCursor) calCursor = new Date(s.meta.hoy + 'T00:00:00');
+    if (!calCursor && s.meta && s.meta.hoy) calCursor = new Date(s.meta.hoy + 'T00:00:00');
     render();
     setLoading(false);
+    if (s && s.__offline){ setReadOnly(true, offlineNotice()); return s; }
+    if (OFF && typeof OFF.saveState === 'function') OFF.saveState(s);
+    setReadOnly(false);
     return s;
   }).catch(function(e){
     showError((e && e.message) ? ('No se pudo conectar con el backend: ' + e.message) : 'No se pudo conectar con el backend.');
@@ -1075,6 +1118,10 @@ function buildPayload(){
 }
 
 function submitReg(){
+  if (readOnly || (OFF && OFF.isOffline())){
+    toast('Sin conexión: los cambios necesitan internet', true);
+    return;
+  }
   if (!validate()){ toast('Revisa los campos marcados'); return; }
   var p = buildPayload();
   var url, method;
@@ -1194,6 +1241,26 @@ document.addEventListener('DOMContentLoaded', function(){
       link.classList.add('active');
     });
   });
+
+  /* ---------- Offline: registro del SW, pintado desde caché y eventos de red ---------- */
+  if (OFF && typeof OFF.register === 'function') OFF.register();
+  if (OFF && typeof OFF.isOffline === 'function' && OFF.isOffline()){
+    var cachedState = (typeof OFF.loadState === 'function') ? OFF.loadState() : null;
+    if (cachedState && cachedState.state){
+      state = cachedState.state;
+      if (!calCursor && cachedState.state.meta && cachedState.state.meta.hoy) calCursor = new Date(cachedState.state.meta.hoy + 'T00:00:00');
+      render();
+      setLoading(false);
+      setReadOnly(true, offlineNotice());
+    }
+  }
+  if (OFF && typeof OFF.onChange === 'function'){
+    OFF.onChange(function(online){
+      if (online){ updateNetPill('busy'); loadState(); }
+      else { setReadOnly(true, offlineNotice()); }
+    });
+  }
+
   loadState();
 });
 </script>

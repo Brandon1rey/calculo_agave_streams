@@ -1,0 +1,19 @@
+{
+  "name": "Agave Cía · Recepción · Producción · Calculadora",
+  "short_name": "Agave Cía",
+  "description": "Dashboard de recepción de materia prima, producción E2E y calculadora de rendimiento de agave.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F1E8",
+  "theme_color": "#1F6A44",
+  "lang": "es-MX",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%231F6A44'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='%23F4F1E8' font-family='Georgia'>A</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
