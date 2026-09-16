@@ -233,6 +233,13 @@ details.fine .fine-body{display:flex;flex-direction:column;gap:12px;margin-top:1
    la barra lateral convertida en una tira de navegación pegada arriba.
    ========================================================================== */
 @media (max-width:860px){
+  /* La página NO puede desplazarse de lado. overflow:clip no crea contenedor de
+     scroll, así que el sticky de la tira de navegación sigue funcionando;
+     overflow:hidden queda como respaldo para navegadores viejos.
+     scroll-padding-top evita que la tira pegada tape el título al que saltas. */
+  html{scroll-padding-top:64px}
+  body{max-width:100%;overflow-x:hidden}
+  @supports (overflow:clip){ body{overflow-x:clip} }
   .app{display:block;height:auto;min-height:100dvh;overflow:visible}
   .shell{display:block;overflow:visible;grid-column:1}
   main{overflow:visible;padding:14px 14px calc(48px + env(safe-area-inset-bottom))}
@@ -289,25 +296,63 @@ details.fine .fine-body{display:flex;flex-direction:column;gap:12px;margin-top:1
   .donut-list{min-width:0;width:100%}
   .cal-summary{gap:14px;padding:12px 14px}
 
-  /* --- Calendario: 7 columnas que se desplazan en vez de aplastarse ----- */
-  .cal-grid{grid-template-columns:repeat(7,minmax(56px,1fr));gap:4px;overflow-x:auto;padding-bottom:4px}
-  .cal-cell{min-height:62px;padding:5px;border-radius:9px}
-  .cal-cell .dnum{font-size:11px;margin-bottom:3px}
-  .cal-trucks{font-size:9.5px;gap:2px}
-  .cal-plus{opacity:1;bottom:3px;right:4px;width:15px;height:15px;font-size:11px;line-height:15px}
+  /* --- Calendario: CABE en la pantalla (nada de scroll lateral). Cada camión
+     se reduce a un punto de color: azul = planeado, verde = recibido. ------- */
+  .cal-grid{grid-template-columns:repeat(7,1fr);gap:3px;overflow:visible;padding-bottom:0}
+  .cal-cell{min-height:54px;padding:4px;border-radius:8px}
+  .cal-cell .dnum{font-size:10.5px;margin-bottom:3px}
+  .cal-trucks{flex-direction:row;flex-wrap:wrap;gap:2px}
+  .cal-trucks .ct{font-size:0;line-height:0;width:6px;height:6px;border-radius:50%;background:var(--ink-3)}
+  .cal-trucks .ct-p{background:var(--info)}
+  .cal-trucks .ct-r{background:var(--accent)}
+  .cal-plus{opacity:1;bottom:2px;right:3px;width:14px;height:14px;font-size:10px;line-height:14px}
   .chips{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:2px}
   .chip{flex:0 0 auto;white-space:nowrap}
 
-  /* --- Tablas: se desplazan dentro de la tarjeta, primera columna fija ----
-     OJO: el min-width va SOLO a las tablas que viven dentro de .table-scroll
-     (las de datos). La tabla de la cascada no tiene contenedor con scroll, así
-     que debe poder encogerse: si se le pone min-width, estira toda la página. */
-  .table-scroll{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .table-scroll table{min-width:720px;font-size:13px}
-  thead th,tbody td{padding:10px 12px}
-  .table-scroll thead th:first-child,.table-scroll tbody td:first-child{position:sticky;left:0;z-index:2;background:var(--surface);box-shadow:1px 0 0 var(--line)}
-  .table-scroll thead th:first-child{background:var(--surface-2)}
-  .table-scroll tbody tr:hover td:first-child{background:var(--accent-soft)}
+  /* --- Tablas de datos: dejan de desplazarse de lado. En el teléfono cada
+     fila se convierte en una tarjeta con la etiqueta delante de cada dato.
+     Las etiquetas van por POSICIÓN de columna, así no hay que tocar el
+     JavaScript que arma las filas. ---------------------------------------- */
+  .table-scroll{max-width:100%;overflow-x:visible}
+  .table-scroll table,.table-scroll tbody,.table-scroll tr,.table-scroll td{display:block;width:auto;min-width:0}
+  .table-scroll thead{display:none}
+  .table-scroll tr{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:6px 12px;margin-bottom:10px}
+  .table-scroll td{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:7px 0;border:0;border-bottom:1px dashed var(--line);text-align:left}
+  .table-scroll tr td:last-child{border-bottom:0}
+  .table-scroll td::before{content:'';flex:0 0 auto;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+  .table-scroll td[colspan]{display:block;padding:0;border:0}
+  .table-scroll td[colspan]::before{content:none}
+  .table-scroll tr:has(td[colspan]){border:0;background:transparent;padding:0;margin:0}
+  .table-scroll td.num{text-align:right}
+  #tbody td:nth-child(1)::before{content:'Stream'}
+  #tbody td:nth-child(2)::before{content:'Razón social'}
+  #tbody td:nth-child(3)::before{content:'Placa'}
+  #tbody td:nth-child(4)::before{content:'kg neto'}
+  #tbody td:nth-child(5)::before{content:'Bruto/Tara'}
+  #tbody td:nth-child(6)::before{content:'F. planeada'}
+  #tbody td:nth-child(7)::before{content:'F. real'}
+  #tbody td:nth-child(8)::before{content:'Estado'}
+  #tbody td:nth-child(9)::before{content:'Inspección'}
+  #tbody td:nth-child(10),#consumosBody td:nth-child(6),#ordenesBody td:nth-child(9),#backupsCard tbody td:nth-child(7){justify-content:flex-start;border-top:1px dashed var(--line);border-bottom:0;padding-top:9px;margin-top:4px}
+  #consumosBody td:nth-child(1)::before{content:'Fecha'}
+  #consumosBody td:nth-child(2)::before{content:'Stream'}
+  #consumosBody td:nth-child(3)::before{content:'Razón social'}
+  #consumosBody td:nth-child(4)::before{content:'kg consumidos'}
+  #consumosBody td:nth-child(5)::before{content:'Tequila'}
+  #ordenesBody td:nth-child(1)::before{content:'Orden'}
+  #ordenesBody td:nth-child(2)::before{content:'Razón social'}
+  #ordenesBody td:nth-child(3)::before{content:'Estado'}
+  #ordenesBody td:nth-child(4)::before{content:'Agave'}
+  #ordenesBody td:nth-child(5)::before{content:'Tequila esperado'}
+  #ordenesBody td:nth-child(6)::before{content:'Tequila real'}
+  #ordenesBody td:nth-child(7)::before{content:'Rend. real'}
+  #ordenesBody td:nth-child(8)::before{content:'Eficiencia'}
+  #backupsCard tbody td:nth-child(1)::before{content:'Creado'}
+  #backupsCard tbody td:nth-child(2)::before{content:'Razones'}
+  #backupsCard tbody td:nth-child(3)::before{content:'Streams'}
+  #backupsCard tbody td:nth-child(4)::before{content:'Camiones'}
+  #backupsCard tbody td:nth-child(5)::before{content:'Consumos'}
+  #backupsCard tbody td:nth-child(6)::before{content:'Órdenes'}
   .cascade-table{min-width:0;font-size:12px;table-layout:fixed}
   .cascade-table th,.cascade-table td{padding:6px 8px;overflow-wrap:anywhere}
   .row-actions{flex-wrap:wrap}
@@ -391,7 +436,7 @@ details.fine .fine-body{display:flex;flex-direction:column;gap:12px;margin-top:1
       <div class="section-head"><h2>Streams de ingreso</h2><span class="hint">Cada stream alimenta la campaña de una razón social</span><span class="spacer"></span><button class="primary-btn" data-act="add-stream">+ Stream</button></div>
       <div class="grid-3" id="streams"></div>
 
-      <div class="section-head"><h2>Calendario de camiones</h2><span class="hint">Planeados vs reales — los camiones no son puntuales</span><span class="spacer"></span><div class="chips" id="calChips" role="group" aria-label="Filtrar calendario por stream"></div></div>
+      <div class="section-head" id="calendario"><h2>Calendario de camiones</h2><span class="hint">Planeados vs reales — los camiones no son puntuales</span><span class="spacer"></span><div class="chips" id="calChips" role="group" aria-label="Filtrar calendario por stream"></div></div>
       <div class="card" style="padding:16px 18px">
         <div class="cal-head" id="calMonthTitle"></div>
         <div class="cal-grid" id="calDows"></div>
@@ -408,7 +453,7 @@ details.fine .fine-body{display:flex;flex-direction:column;gap:12px;margin-top:1
       <div class="section-head" id="ordenes"><h2>Órdenes de producción (E2E)</h2><span class="hint">Lotes con control de rendimiento real vs esperado</span><span class="spacer"></span><button class="primary-btn" data-act="add-orden">+ Orden</button></div>
       <div class="card"><div class="table-scroll"><table><thead><tr><th scope="col">Orden</th><th scope="col">Razón social</th><th scope="col">Estado</th><th scope="col" class="num">Agave (kg)</th><th scope="col" class="num">Tequila esperado (L)</th><th scope="col" class="num">Tequila real (L)</th><th scope="col" class="num">Rend. real (L/t)</th><th scope="col" class="num">Eficiencia</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead><tbody id="ordenesBody"></tbody></table></div></div>
 
-      <div class="section-head"><h2>Merma por causa</h2><span class="hint">Distribución de la merma (editable)</span></div>
+      <div class="section-head" id="merma"><h2>Merma por causa</h2><span class="hint">Distribución de la merma (editable)</span></div>
       <div class="card donut-grid" id="mermaWrap"></div>
 
       <div class="section-head" id="backups"><h2>Respaldo y restauración</h2><span class="hint">Snapshots de data/db.json · restaura cualquier momento</span><span class="spacer"></span><button class="primary-btn" data-act="backup-create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:15px;height:15px"><path d="M12 3v12M7 10l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 19h16" stroke-linecap="round"/></svg>Crear respaldo</button></div>

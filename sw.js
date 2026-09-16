@@ -7,7 +7,7 @@
  */
 'use strict';
 
-var CACHE = 'agave-v1';
+var CACHE = 'agave-v2';
 var CACHE_PREFIX = 'agave-';
 var PRECACHE = ['/', '/index.html', '/offline.js', '/engine.js', '/manifest.webmanifest'];
 var OFFLINE_INDEX = '/index.html';
