@@ -2,7 +2,7 @@
 <html lang="es-MX">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Agave Cía · Recepción · Producción · Calculadora</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#1F6A44">
@@ -224,7 +224,114 @@ details.fine .fine-body{display:flex;flex-direction:column;gap:12px;margin-top:1
 
 @media (max-width:1280px){.calc-grid{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:1180px){.kpis{grid-template-columns:repeat(3,1fr)}.grid-3{grid-template-columns:1fr}.grid-2{grid-template-columns:1fr}}
-@media (max-width:860px){.app{grid-template-columns:1fr}.sidebar{display:none}.shell{grid-column:1}.kpis{grid-template-columns:repeat(2,1fr)}.calc-grid{grid-template-columns:1fr 1fr}}
+
+/* ============================================================================
+   MÓVIL Y TABLETA
+   En pantallas chicas la app deja de ser una rejilla fija de 100vh con scroll
+   interno (el 100vh se rompe con la barra del navegador y el scroll anidado se
+   atasca). Pasa a ser un documento normal que se desplaza de arriba abajo, con
+   la barra lateral convertida en una tira de navegación pegada arriba.
+   ========================================================================== */
+@media (max-width:860px){
+  .app{display:block;height:auto;min-height:100dvh;overflow:visible}
+  .shell{display:block;overflow:visible;grid-column:1}
+  main{overflow:visible;padding:14px 14px calc(48px + env(safe-area-inset-bottom))}
+  #loadingBar{position:fixed;top:0;left:0;right:0;z-index:60}
+
+  /* --- Navegación: antes desaparecía por completo; ahora es una tira ------ */
+  .sidebar{display:flex;flex-direction:row;align-items:center;gap:8px;position:sticky;top:0;z-index:40;
+    padding:9px 12px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .sidebar::-webkit-scrollbar{display:none}
+  .brand{flex:0 0 auto;padding:0 12px 0 0;margin:0;border:0;border-right:1px solid rgba(244,241,232,.16);gap:8px}
+  .brand-mark{width:32px;height:32px;border-radius:9px;font-size:17px}
+  .brand-name{font-size:14px}
+  .brand-sub{display:none}
+  .nav-label{display:none}
+  .nav-link{flex:0 0 auto;min-height:36px;padding:8px 12px;font-size:13px;white-space:nowrap;border-radius:9px}
+  .nav-link svg{width:16px;height:16px}
+  .sidebar-foot{flex:0 0 auto;margin:0 0 0 auto;padding:0 0 0 10px;border:0;border-left:1px solid rgba(244,241,232,.16)}
+  .sidebar-foot p{display:none}
+  .export-btn{width:auto;padding:8px 12px;font-size:12.5px;white-space:nowrap}
+
+  /* --- Barra superior: los tres bloques ya no caben en una fila ---------- */
+  .topbar{flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .topbar-title{flex:1 1 100%;min-width:0;font-size:15px;white-space:normal}
+  .topbar-title small{font-size:11.5px}
+  #apiPill{display:none}
+  .user{margin-left:auto;padding-left:0;border-left:0}
+  .user-meta{display:none}
+  .avatar{width:32px;height:32px;font-size:12px}
+  .api-pill{flex:0 0 auto}
+
+  /* --- Nada puede empujar el ancho de la página ------------------------- */
+  .card,.panel-card,.table-scroll,.kpis,.grid-2,.grid-3,.dual,.calc-grid,.donut-grid,.cal-summary,
+  .steps-card,.hero,.banner,.section-head,.card-head,.panel-card h3{min-width:0}
+  .cell-name,.cell-sub,td,th,.hero p,.state p,.banner,.calc-out,.steps-card{overflow-wrap:anywhere}
+
+  /* --- Tipografía y espaciados de pantalla chica ------------------------ */
+  .hero h1{font-size:19px}
+  .hero p,.steps-card,.calc-out{font-size:13px}
+  .section-head{margin:22px 0 10px;gap:6px}
+  .section-head h2{flex:1 1 100%;font-size:16px}
+  .section-head .hint{font-size:12px}
+  .section-head .spacer{display:none}
+  .primary-btn,.ghost-btn{padding:9px 14px;font-size:13px}
+
+  /* --- Rejillas a una columna ------------------------------------------- */
+  .kpis{grid-template-columns:repeat(2,1fr);gap:10px}
+  .kpi{padding:13px 13px 11px}
+  .kpi .value{font-size:21px}
+  .kpi .label{font-size:10px}
+  .grid-3,.grid-2,.dual,.field-row,.calc-grid{grid-template-columns:1fr}
+  .calc-grid{gap:8px}
+  .donut-grid{padding:14px;gap:14px}
+  .donut-box{width:150px;margin-inline:auto}
+  .donut-list{min-width:0;width:100%}
+  .cal-summary{gap:14px;padding:12px 14px}
+
+  /* --- Calendario: 7 columnas que se desplazan en vez de aplastarse ----- */
+  .cal-grid{grid-template-columns:repeat(7,minmax(56px,1fr));gap:4px;overflow-x:auto;padding-bottom:4px}
+  .cal-cell{min-height:62px;padding:5px;border-radius:9px}
+  .cal-cell .dnum{font-size:11px;margin-bottom:3px}
+  .cal-trucks{font-size:9.5px;gap:2px}
+  .cal-plus{opacity:1;bottom:3px;right:4px;width:15px;height:15px;font-size:11px;line-height:15px}
+  .chips{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:2px}
+  .chip{flex:0 0 auto;white-space:nowrap}
+
+  /* --- Tablas: se desplazan dentro de la tarjeta, primera columna fija ----
+     OJO: el min-width va SOLO a las tablas que viven dentro de .table-scroll
+     (las de datos). La tabla de la cascada no tiene contenedor con scroll, así
+     que debe poder encogerse: si se le pone min-width, estira toda la página. */
+  .table-scroll{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .table-scroll table{min-width:720px;font-size:13px}
+  thead th,tbody td{padding:10px 12px}
+  .table-scroll thead th:first-child,.table-scroll tbody td:first-child{position:sticky;left:0;z-index:2;background:var(--surface);box-shadow:1px 0 0 var(--line)}
+  .table-scroll thead th:first-child{background:var(--surface-2)}
+  .table-scroll tbody tr:hover td:first-child{background:var(--accent-soft)}
+  .cascade-table{min-width:0;font-size:12px;table-layout:fixed}
+  .cascade-table th,.cascade-table td{padding:6px 8px;overflow-wrap:anywhere}
+  .row-actions{flex-wrap:wrap}
+
+  /* --- Modal: hoja inferior a pantalla ancha ---------------------------- */
+  .modal-backdrop{padding:0;align-items:flex-end}
+  .modal{width:100%;max-width:100%;max-height:94dvh;border-radius:16px 16px 0 0}
+  .modal-head,.modal-body,.modal-foot{padding-left:16px;padding-right:16px}
+  .modal-body{gap:11px;overflow-y:auto}
+  .modal-foot{position:sticky;bottom:0;background:var(--surface);padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+  .seg{width:100%}
+  .seg button{flex:1 1 auto;padding:8px 10px}
+
+  /* --- Avisos ----------------------------------------------------------- */
+  .banner{flex-wrap:wrap;font-size:12.5px;padding:10px 12px}
+  .banner button{margin-left:0}
+  #toast{left:12px;right:12px;max-width:none;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateY(20px)}
+  #toast.show{transform:translateY(0)}
+}
+@media (max-width:400px){
+  .kpis{grid-template-columns:1fr}
+  .topbar-title{font-size:14px}
+  .brand-name{display:none}
+}
 </style>
 </head>
 <body>
@@ -244,7 +351,7 @@ details.fine .fine-body{display:flex;flex-direction:column;gap:12px;margin-top:1
     <a class="nav-link" href="flujo.html" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6h10M5 8v8M19 8v8M7 18h2M15 18h2"/></svg>Flujo de streams</a>
     <div class="sidebar-foot">
       <button class="export-btn" data-act="export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px"><path d="M12 3v12M7 10l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 19h16" stroke-linecap="round"/></svg>Exportar CSV</button>
-      <p style="text-align:center;margin:14px 0 0">Sin datos mock · data/db.json</p>
+      <p style="text-align:center;margin:14px 0 0">PostgreSQL · Supabase</p>
     </div>
   </aside>
 
@@ -1264,6 +1371,25 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 
   /* ---------- Offline: registro del SW, pintado desde caché y eventos de red ---------- */
+  /* En móvil la barra lateral es una tira horizontal: el chip de conexión se
+     mueve ahí para que siga visible mientras se hace scroll (en escritorio se
+     queda en la barra superior, como estaba). */
+  (function ubicarChipConexion(){
+    var pill = document.getElementById('netPill');
+    var strip = document.querySelector('.sidebar');
+    var topbar = document.querySelector('.topbar');
+    if (!pill || !strip || !topbar) return;
+    var pie = strip.querySelector('.sidebar-foot');
+    var usuario = topbar.querySelector('.user');
+    function ubicar(){
+      var movil = window.matchMedia('(max-width: 860px)').matches;
+      if (movil && pill.parentNode !== strip) strip.insertBefore(pill, pie);
+      else if (!movil && pill.parentNode === strip) topbar.insertBefore(pill, usuario);
+    }
+    ubicar();
+    window.addEventListener('resize', ubicar);
+  })();
+
   if (OFF && typeof OFF.register === 'function') OFF.register();
   if (OFF && typeof OFF.isOffline === 'function' && OFF.isOffline()){
     var cachedState = (typeof OFF.loadState === 'function') ? OFF.loadState() : null;
