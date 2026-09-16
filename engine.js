@@ -23,7 +23,27 @@
   function round1(x){ return Math.round(x * 10) / 10; }
   function round2(x){ return Math.round(x * 100) / 100; }
   function pad(n){ return n < 10 ? '0' + n : '' + n; }
-  function todayStr(d){ const x = d || new Date(); return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); }
+
+  /* "Hoy" del negocio. Vercel ejecuta las funciones en UTC: sin zona explícita,
+     a partir de las 18:00 (hora de México) el servidor ya cree que es mañana y
+     marcaría los camiones del día como atrasados. AGAVE_TZ permite cambiarla;
+     en el navegador se usa la zona del propio dispositivo. */
+  const TZ_POR_DEFECTO = 'America/Mexico_City';
+  function zonaHoraria(){
+    if (typeof process !== 'undefined' && process.env) return process.env.AGAVE_TZ || TZ_POR_DEFECTO;
+    return null;
+  }
+  function ymdLocal(x){ return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); }
+  function todayStr(d){
+    const x = d || new Date();
+    const tz = zonaHoraria();
+    if (tz){
+      try {
+        return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(x);
+      } catch (e) { /* zona inválida o sin Intl: reloj local */ }
+    }
+    return ymdLocal(x);
+  }
   function isDate(s){ return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
   function uid(p){ return p + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7); }
   function parseNum(v){ const n = Number(v); return isFinite(n) ? n : NaN; }
@@ -149,6 +169,7 @@
     const idx = db.razonesSociales.findIndex(x => x.id === id);
     if (idx < 0) throw err('Razón social no encontrada', 404);
     if (db.streams.some(s => s.rsId === id)) throw err('No se puede eliminar: hay streams asignados a esta razón social', 409);
+    if (db.ordenes.some(o => o.rsId === id)) throw err('No se puede eliminar: hay órdenes de producción de esta razón social', 409);
     if (db.camiones.some(c => c.rsDestinoId === id)) throw err('No se puede eliminar: hay camiones que tienen esta razón social como destino', 409);
     if (db.consumos.some(c => c.rsDestinoId === id)) throw err('No se puede eliminar: hay consumos que tienen esta razón social como destino', 409);
     db.razonesSociales.splice(idx, 1);
@@ -261,8 +282,15 @@
     t.fechaReal = fechaReal;
     if (body.rsDestinoId !== undefined){ if (body.rsDestinoId !== null && !db.razonesSociales.some(r => r.id === body.rsDestinoId)) throw err('razón social destino inválida'); t.rsDestinoId = body.rsDestinoId || null; }
     if (body.kg !== undefined){ const v = parseNum(body.kg); if (v >= 100) t.kg = Math.round(v); }
-    if (body.pesoBruto !== undefined) t.pesoBruto = Math.round(parseNum(body.pesoBruto)) || null;
-    if (body.pesoTara !== undefined) t.pesoTara = Math.round(parseNum(body.pesoTara)) || null;
+    // Misma coherencia de pesaje que updateCamion: sin esto el error lo acababa
+    // dando el CHECK de la tabla, con un mensaje genérico y críptico.
+    if (body.pesoBruto !== undefined || body.pesoTara !== undefined){
+      const bruto = body.pesoBruto !== undefined ? Math.round(parseNum(body.pesoBruto)) : t.pesoBruto;
+      const tara = body.pesoTara !== undefined ? Math.round(parseNum(body.pesoTara)) : t.pesoTara;
+      if (bruto !== null && tara !== null && !(bruto > tara)) throw err('pesoBruto debe ser mayor que pesoTara');
+      if (body.pesoBruto !== undefined) t.pesoBruto = Math.round(parseNum(body.pesoBruto)) || null;
+      if (body.pesoTara !== undefined) t.pesoTara = Math.round(parseNum(body.pesoTara)) || null;
+    }
     if (body.inspeccion !== undefined) t.inspeccion = validarInspeccion(body.inspeccion);
     return db;
   }

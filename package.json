@@ -9,6 +9,8 @@
     "start": "node scripts/dev-server.js",
     "db:schema": "node scripts/apply-schema.js",
     "db:import": "node scripts/import-json.js",
+    "test": "node tests/engine.test.js && node tests/offline-client.test.js",
+    "test:engine": "node tests/engine.test.js",
     "test:offline": "node tests/offline-client.test.js"
   },
   "dependencies": {

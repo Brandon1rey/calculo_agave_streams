@@ -6,10 +6,17 @@
  * entiende engine.js) y las tablas de Postgres. El motor NO sabe de SQL y esta
  * capa NO sabe de reglas de negocio.
  *
- * Estrategia de escritura: el motor ya validó y dejó el documento consistente,
- * así que cada guardado sincroniza el documento completo dentro de UNA
- * transacción (borra lo que sobra + upsert de lo que hay). Para el volumen de
- * esta app (decenas/cientos de filas) es simple, atómico y suficiente.
+ * Escritura: el motor valida y deja el documento consistente, así que cada
+ * guardado sincroniza el documento completo dentro de UNA transacción (borra lo
+ * que sobra + upsert de lo que hay). Para el volumen de esta app (decenas o
+ * cientos de filas) es simple, atómico y suficiente.
+ *
+ * CONCURRENCIA: una escritura es leer-modificar-escribir; si dos peticiones se
+ * solapan, la segunda carga un documento viejo y su sincronización borra lo que
+ * insertó la primera (actualización perdida; reproducido 8 de 8 veces). Por eso
+ * las mutaciones usan mutarAtomico(): una sola transacción que primero bloquea
+ * la fila de `settings` (FOR UPDATE), de modo que todos los escritores se
+ * serializan en ese punto y cada uno lee el estado ya confirmado del anterior.
  * ========================================================================== */
 const fs = require('fs');
 const path = require('path');
@@ -50,9 +57,37 @@ function getPool(){
 
 function pedir(text, params){ return getPool().query(text, params); }
 
+/* Traduce fallos de conexión a instrucciones accionables. Devuelve null si no
+   reconoce el problema (entonces se muestra el error original). */
+function hostDe(url){
+  try { return new URL(url).hostname; } catch (e){ return null; }
+}
+function explicarErrorConexion(e){
+  const code = e && e.code;
+  const host = (e && (e.hostname || e.host)) || hostDe(process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL);
+  const h = String(host || '');
+  if (/^db\.[a-z0-9]+\.supabase\.co$/i.test(h)) {
+    return 'La conexión apunta a ' + h + ', que es la conexión DIRECTA de Supabase: solo tiene registro IPv6 y Vercel no puede alcanzarla. '
+      + 'Cambia DATABASE_URL por la cadena del POOLER (Supabase → Project Settings → Database → Connection string → Transaction pooler, puerto 6543) '
+      + 'y vuelve a desplegar para que la tome.';
+  }
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'No se pudo resolver el host de la base de datos (' + (h || 'desconocido') + '). Revisa DATABASE_URL.';
+  if (code === 'ETIMEDOUT' || code === 'ECONNREFUSED') return 'No se pudo conectar con la base de datos en ' + (h || 'el host configurado') + ' (revisa red, puerto y si el proyecto está pausado).';
+  if (code === '28P01' || /password authentication failed/i.test((e && e.message) || '')) {
+    return 'Contraseña incorrecta para la base de datos. Si tu contraseña tiene caracteres especiales (@ # % / : ?), hay que codificarlos en la URI con encodeURIComponent.';
+  }
+  if (code === '3D000') return 'La base de datos indicada en DATABASE_URL no existe.';
+  return null;
+}
+
 /* Traduce errores de Postgres a errores de negocio con status HTTP. */
 function traducirError(e){
+  const conexion = explicarErrorConexion(e);
+  if (conexion && (e.code === 'ENOTFOUND' || e.code === 'EAI_AGAIN' || e.code === 'ETIMEDOUT' || e.code === 'ECONNREFUSED' || e.code === '28P01' || e.code === '3D000' || /\.supabase\.co$/i.test(String(e.hostname || '')))) {
+    return engine.err(conexion, 500);
+  }
   const code = e && e.code;
+  if (code === '55P03') return engine.err('Hay otra operación guardando en este momento. Vuelve a intentar en unos segundos.', 409);
   if (code === '23514') return engine.err('Dato inválido: no cumple una regla de la base de datos (' + (e.constraint || '') + ')', 400);
   if (code === '23505') return engine.err('Registro duplicado (' + (e.constraint || '') + ')', 409);
   if (code === '23503') {
@@ -129,34 +164,36 @@ function mapOrden(r, etapas){
 }
 
 /* ================================== lectura ================================== */
+/* Lee el documento completo sobre una conexión ya abierta, para poder formar
+   parte de la transacción con bloqueo. */
+async function leerTodo(c){
+  const [set, rs, st, cam, con, ord, eta] = await Promise.all([
+    c.query('select * from settings where id = 1'),
+    c.query('select * from razones_sociales order by created_at, id'),
+    c.query('select * from streams order by created_at, id'),
+    c.query('select * from camiones order by fecha_planeada, id'),
+    c.query('select * from consumos order by fecha, id'),
+    c.query('select * from ordenes order by fecha_inicio, id'),
+    c.query('select * from orden_etapas')
+  ]);
+  const s = set.rows[0];
+  const db = engine.hydrate({
+    version: engine.SCHEMA_VERSION,
+    parametrosCalculo: s ? mapSettings(s) : engine.defaultCalc(),
+    razonesSociales: rs.rows.map(mapRazon),
+    streams: st.rows.map(mapStream),
+    camiones: cam.rows.map(mapCamion),
+    consumos: con.rows.map(mapConsumo),
+    ordenes: ord.rows.map(r => mapOrden(r, eta.rows.filter(e => e.orden_id === r.id)))
+  });
+  db.rev = s ? Number(s.rev) : 0;
+  db.updatedAt = s && s.updated_at ? new Date(s.updated_at).toISOString() : null;
+  return db;
+}
+
 async function loadDb(){
   const c = await getPool().connect();
-  try {
-    const [set, rs, st, cam, con, ord, eta] = await Promise.all([
-      c.query('select * from settings where id = 1'),
-      c.query('select * from razones_sociales order by created_at, id'),
-      c.query('select * from streams order by created_at, id'),
-      c.query('select * from camiones order by fecha_planeada, id'),
-      c.query('select * from consumos order by fecha, id'),
-      c.query('select * from ordenes order by fecha_inicio, id'),
-      c.query('select * from orden_etapas')
-    ]);
-    const s = set.rows[0];
-    const db = engine.hydrate({
-      version: engine.SCHEMA_VERSION,
-      parametrosCalculo: s ? mapSettings(s) : engine.defaultCalc(),
-      razonesSociales: rs.rows.map(mapRazon),
-      streams: st.rows.map(mapStream),
-      camiones: cam.rows.map(mapCamion),
-      consumos: con.rows.map(mapConsumo),
-      ordenes: ord.rows.map(r => mapOrden(r, eta.rows.filter(e => e.orden_id === r.id)))
-    });
-    db.rev = s ? Number(s.rev) : 0;
-    db.updatedAt = s && s.updated_at ? new Date(s.updated_at).toISOString() : null;
-    return db;
-  } finally {
-    c.release();
-  }
+  try { return await leerTodo(c); } finally { c.release(); }
 }
 
 async function getRev(){
@@ -178,121 +215,152 @@ async function prune(c, tabla, columna, ids){
   else await c.query('delete from ' + tabla + ' where ' + columna + ' <> all($1::text[])', [ids]);
 }
 
+/* Sincroniza el documento completo sobre una conexión ya abierta (no abre ni
+   cierra transacción: eso lo decide quien llama). Devuelve {rev, updatedAt}. */
+async function escribirTodo(c, db){
+  // 1) parámetros globales + incremento de revisión
+  const mc = Object.assign({}, engine.DEFAULT_CALC.mermaCausas, (db.parametrosCalculo || {}).mermaCausas || {});
+  const grados = (db.parametrosCalculo || {}).gradosTequila === undefined ? engine.DEFAULT_CALC.gradosTequila : Number(db.parametrosCalculo.gradosTequila);
+  const sres = await c.query(
+    `insert into settings (id, grados_tequila, merma_hojas, merma_danado, merma_fibra, merma_cortes, merma_otros, rev, updated_at)
+     values (1,$1,$2,$3,$4,$5,$6,1, now())
+     on conflict (id) do update set
+       grados_tequila = excluded.grados_tequila, merma_hojas = excluded.merma_hojas,
+       merma_danado = excluded.merma_danado, merma_fibra = excluded.merma_fibra,
+       merma_cortes = excluded.merma_cortes, merma_otros = excluded.merma_otros,
+       rev = settings.rev + 1, updated_at = now()
+     returning rev, updated_at`,
+    [grados, mc.hojas, mc.danado, mc.fibra, mc.cortes, mc.otros]
+  );
+  const rev = Number(sres.rows[0].rev);
+  const updatedAt = new Date(sres.rows[0].updated_at).toISOString();
+
+  // 2) borrado de lo que ya no existe (hijos primero, por las claves foráneas)
+  const idsOrden = db.ordenes.map(o => o.id);
+  const idsConsumo = db.consumos.map(o => o.id);
+  const idsCamion = db.camiones.map(o => o.id);
+  const idsStream = db.streams.map(o => o.id);
+  const idsRazon = db.razonesSociales.map(o => o.id);
+  await prune(c, 'orden_etapas', 'orden_id', idsOrden);
+  await prune(c, 'ordenes', 'id', idsOrden);
+  await prune(c, 'consumos', 'id', idsConsumo);
+  await prune(c, 'camiones', 'id', idsCamion);
+  await prune(c, 'streams', 'id', idsStream);
+  await prune(c, 'razones_sociales', 'id', idsRazon);
+
+  // 3) upsert de lo que hay (padres primero)
+  for (const r of db.razonesSociales){
+    const p = r.parametros || engine.PRESETS.base;
+    await c.query(
+      `insert into razones_sociales (id, nombre, corto, coccion_perdida, molienda_rendimiento, conversion_mosto_alcohol, destilacion_rendimiento, anejamiento_perdida, preset, updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())
+       on conflict (id) do update set
+         nombre = excluded.nombre, corto = excluded.corto, coccion_perdida = excluded.coccion_perdida,
+         molienda_rendimiento = excluded.molienda_rendimiento, conversion_mosto_alcohol = excluded.conversion_mosto_alcohol,
+         destilacion_rendimiento = excluded.destilacion_rendimiento, anejamiento_perdida = excluded.anejamiento_perdida,
+         preset = excluded.preset, updated_at = now()`,
+      [r.id, r.nombre, r.corto, p.coccionPerdida, p.moliendaRendimiento, p.conversionMostoAlcohol, p.destilacionRendimiento, p.anejamientoPerdida, r.preset || 'custom']
+    );
+  }
+  for (const s of db.streams){
+    await c.query(
+      `insert into streams (id, nombre, zona, razon_social_id, objetivo_t, merma_rate, updated_at)
+       values ($1,$2,$3,$4,$5,$6, now())
+       on conflict (id) do update set
+         nombre = excluded.nombre, zona = excluded.zona, razon_social_id = excluded.razon_social_id,
+         objetivo_t = excluded.objetivo_t, merma_rate = excluded.merma_rate, updated_at = now()`,
+      [s.id, s.nombre, s.zona || '—', s.rsId, s.objetivoT, s.mermaRate]
+    );
+  }
+  for (const t of db.camiones){
+    const i = t.inspeccion || {};
+    await c.query(
+      `insert into camiones (id, stream_id, rs_destino_id, placa, peso_bruto, peso_tara, kg, fecha_planeada, fecha_real,
+                             inspeccion_resultado, inspeccion_pct_pina, inspeccion_nota, updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
+       on conflict (id) do update set
+         stream_id = excluded.stream_id, rs_destino_id = excluded.rs_destino_id, placa = excluded.placa,
+         peso_bruto = excluded.peso_bruto, peso_tara = excluded.peso_tara, kg = excluded.kg,
+         fecha_planeada = excluded.fecha_planeada, fecha_real = excluded.fecha_real,
+         inspeccion_resultado = excluded.inspeccion_resultado, inspeccion_pct_pina = excluded.inspeccion_pct_pina,
+         inspeccion_nota = excluded.inspeccion_nota, updated_at = now()`,
+      [t.id, t.streamId, t.rsDestinoId || null, t.placa || null,
+       t.pesoBruto === undefined ? null : t.pesoBruto, t.pesoTara === undefined ? null : t.pesoTara,
+       t.kg, t.fechaPlaneada, t.fechaReal || null,
+       i.resultado === undefined ? null : i.resultado,
+       i.pctPina === undefined ? null : i.pctPina,
+       i.nota === undefined || i.nota === '' ? null : i.nota]
+    );
+  }
+  for (const x of db.consumos){
+    await c.query(
+      `insert into consumos (id, stream_id, rs_destino_id, fecha, kg, updated_at)
+       values ($1,$2,$3,$4,$5, now())
+       on conflict (id) do update set
+         stream_id = excluded.stream_id, rs_destino_id = excluded.rs_destino_id,
+         fecha = excluded.fecha, kg = excluded.kg, updated_at = now()`,
+      [x.id, x.streamId, x.rsDestinoId || null, x.fecha, x.kg]
+    );
+  }
+  for (const o of db.ordenes){
+    await c.query(
+      `insert into ordenes (id, nombre, razon_social_id, estado, fecha_inicio, fecha_fin, agave_kg, tequila_real_l, updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8, now())
+       on conflict (id) do update set
+         nombre = excluded.nombre, razon_social_id = excluded.razon_social_id, estado = excluded.estado,
+         fecha_inicio = excluded.fecha_inicio, fecha_fin = excluded.fecha_fin,
+         agave_kg = excluded.agave_kg, tequila_real_l = excluded.tequila_real_l, updated_at = now()`,
+      [o.id, o.nombre, o.rsId, o.estado || 'planeada', o.fechaInicio, o.fechaFin || null, o.agaveKg,
+       o.tequilaRealL === undefined ? null : o.tequilaRealL]
+    );
+    await c.query('delete from orden_etapas where orden_id = $1', [o.id]);
+    for (const e of (o.etapas || [])){
+      await c.query(
+        `insert into orden_etapas (orden_id, clave, fecha, salida_kg, salida_l, nota)
+         values ($1,$2,$3,$4,$5,$6)`,
+        [o.id, e.clave, e.fecha || null,
+         e.salidaKg === undefined ? null : e.salidaKg,
+         e.salidaL === undefined ? null : e.salidaL,
+         e.nota === undefined || e.nota === '' ? null : e.nota]
+      );
+    }
+  }
+
+  return { rev, updatedAt };
+}
+
 async function saveDb(db){
   const c = await getPool().connect();
   try {
     await c.query('BEGIN');
-
-    // 1) parámetros globales + incremento de revisión
-    const mc = Object.assign({}, engine.DEFAULT_CALC.mermaCausas, (db.parametrosCalculo || {}).mermaCausas || {});
-    const grados = (db.parametrosCalculo || {}).gradosTequila === undefined ? engine.DEFAULT_CALC.gradosTequila : Number(db.parametrosCalculo.gradosTequila);
-    const sres = await c.query(
-      `insert into settings (id, grados_tequila, merma_hojas, merma_danado, merma_fibra, merma_cortes, merma_otros, rev, updated_at)
-       values (1,$1,$2,$3,$4,$5,$6,1, now())
-       on conflict (id) do update set
-         grados_tequila = excluded.grados_tequila, merma_hojas = excluded.merma_hojas,
-         merma_danado = excluded.merma_danado, merma_fibra = excluded.merma_fibra,
-         merma_cortes = excluded.merma_cortes, merma_otros = excluded.merma_otros,
-         rev = settings.rev + 1, updated_at = now()
-       returning rev, updated_at`,
-      [grados, mc.hojas, mc.danado, mc.fibra, mc.cortes, mc.otros]
-    );
-    const rev = Number(sres.rows[0].rev);
-    const updatedAt = new Date(sres.rows[0].updated_at).toISOString();
-
-    // 2) borrado de lo que ya no existe (hijos primero, por las claves foráneas)
-    const idsOrden = db.ordenes.map(o => o.id);
-    const idsConsumo = db.consumos.map(o => o.id);
-    const idsCamion = db.camiones.map(o => o.id);
-    const idsStream = db.streams.map(o => o.id);
-    const idsRazon = db.razonesSociales.map(o => o.id);
-    await prune(c, 'orden_etapas', 'orden_id', idsOrden);
-    await prune(c, 'ordenes', 'id', idsOrden);
-    await prune(c, 'consumos', 'id', idsConsumo);
-    await prune(c, 'camiones', 'id', idsCamion);
-    await prune(c, 'streams', 'id', idsStream);
-    await prune(c, 'razones_sociales', 'id', idsRazon);
-
-    // 3) upsert de lo que hay (padres primero)
-    for (const r of db.razonesSociales){
-      const p = r.parametros || engine.PRESETS.base;
-      await c.query(
-        `insert into razones_sociales (id, nombre, corto, coccion_perdida, molienda_rendimiento, conversion_mosto_alcohol, destilacion_rendimiento, anejamiento_perdida, preset, updated_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())
-         on conflict (id) do update set
-           nombre = excluded.nombre, corto = excluded.corto, coccion_perdida = excluded.coccion_perdida,
-           molienda_rendimiento = excluded.molienda_rendimiento, conversion_mosto_alcohol = excluded.conversion_mosto_alcohol,
-           destilacion_rendimiento = excluded.destilacion_rendimiento, anejamiento_perdida = excluded.anejamiento_perdida,
-           preset = excluded.preset, updated_at = now()`,
-        [r.id, r.nombre, r.corto, p.coccionPerdida, p.moliendaRendimiento, p.conversionMostoAlcohol, p.destilacionRendimiento, p.anejamientoPerdida, r.preset || 'custom']
-      );
-    }
-    for (const s of db.streams){
-      await c.query(
-        `insert into streams (id, nombre, zona, razon_social_id, objetivo_t, merma_rate, updated_at)
-         values ($1,$2,$3,$4,$5,$6, now())
-         on conflict (id) do update set
-           nombre = excluded.nombre, zona = excluded.zona, razon_social_id = excluded.razon_social_id,
-           objetivo_t = excluded.objetivo_t, merma_rate = excluded.merma_rate, updated_at = now()`,
-        [s.id, s.nombre, s.zona || '—', s.rsId, s.objetivoT, s.mermaRate]
-      );
-    }
-    for (const t of db.camiones){
-      const i = t.inspeccion || {};
-      await c.query(
-        `insert into camiones (id, stream_id, rs_destino_id, placa, peso_bruto, peso_tara, kg, fecha_planeada, fecha_real,
-                               inspeccion_resultado, inspeccion_pct_pina, inspeccion_nota, updated_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
-         on conflict (id) do update set
-           stream_id = excluded.stream_id, rs_destino_id = excluded.rs_destino_id, placa = excluded.placa,
-           peso_bruto = excluded.peso_bruto, peso_tara = excluded.peso_tara, kg = excluded.kg,
-           fecha_planeada = excluded.fecha_planeada, fecha_real = excluded.fecha_real,
-           inspeccion_resultado = excluded.inspeccion_resultado, inspeccion_pct_pina = excluded.inspeccion_pct_pina,
-           inspeccion_nota = excluded.inspeccion_nota, updated_at = now()`,
-        [t.id, t.streamId, t.rsDestinoId || null, t.placa || null,
-         t.pesoBruto === undefined ? null : t.pesoBruto, t.pesoTara === undefined ? null : t.pesoTara,
-         t.kg, t.fechaPlaneada, t.fechaReal || null,
-         i.resultado === undefined ? null : i.resultado,
-         i.pctPina === undefined ? null : i.pctPina,
-         i.nota === undefined || i.nota === '' ? null : i.nota]
-      );
-    }
-    for (const x of db.consumos){
-      await c.query(
-        `insert into consumos (id, stream_id, rs_destino_id, fecha, kg, updated_at)
-         values ($1,$2,$3,$4,$5, now())
-         on conflict (id) do update set
-           stream_id = excluded.stream_id, rs_destino_id = excluded.rs_destino_id,
-           fecha = excluded.fecha, kg = excluded.kg, updated_at = now()`,
-        [x.id, x.streamId, x.rsDestinoId || null, x.fecha, x.kg]
-      );
-    }
-    for (const o of db.ordenes){
-      await c.query(
-        `insert into ordenes (id, nombre, razon_social_id, estado, fecha_inicio, fecha_fin, agave_kg, tequila_real_l, updated_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8, now())
-         on conflict (id) do update set
-           nombre = excluded.nombre, razon_social_id = excluded.razon_social_id, estado = excluded.estado,
-           fecha_inicio = excluded.fecha_inicio, fecha_fin = excluded.fecha_fin,
-           agave_kg = excluded.agave_kg, tequila_real_l = excluded.tequila_real_l, updated_at = now()`,
-        [o.id, o.nombre, o.rsId, o.estado || 'planeada', o.fechaInicio, o.fechaFin || null, o.agaveKg,
-         o.tequilaRealL === undefined ? null : o.tequilaRealL]
-      );
-      await c.query('delete from orden_etapas where orden_id = $1', [o.id]);
-      for (const e of (o.etapas || [])){
-        await c.query(
-          `insert into orden_etapas (orden_id, clave, fecha, salida_kg, salida_l, nota)
-           values ($1,$2,$3,$4,$5,$6)`,
-          [o.id, e.clave, e.fecha || null,
-           e.salidaKg === undefined ? null : e.salidaKg,
-           e.salidaL === undefined ? null : e.salidaL,
-           e.nota === undefined || e.nota === '' ? null : e.nota]
-        );
-      }
-    }
-
+    const guardado = await escribirTodo(c, db);
     await c.query('COMMIT');
-    return { rev: rev, updatedAt: updatedAt };
+    return guardado;
+  } catch (e) {
+    try { await c.query('ROLLBACK'); } catch (_) { /* la conexión ya murió */ }
+    throw traducirError(e);
+  } finally {
+    c.release();
+  }
+}
+
+/* Mutación atómica: bloquea la fila de `settings`, lee, aplica `fn(db)` (que
+   valida y muta) y sincroniza, todo en UNA transacción. Dos escrituras
+   simultáneas se serializan: la segunda espera y parte del estado ya confirmado
+   por la primera, así que no se pierde ninguna. */
+async function mutarAtomico(fn){
+  const c = await getPool().connect();
+  try {
+    await c.query('BEGIN');
+    // Si otro escritor tarda demasiado, fallar rápido con un mensaje claro en
+    // vez de dejar la petición colgada.
+    await c.query("set local lock_timeout = '" + (process.env.PG_LOCK_TIMEOUT || '8s') + "'");
+    await c.query('select rev from settings where id = 1 for update');
+    const db = await leerTodo(c);
+    fn(db);
+    const guardado = await escribirTodo(c, db);
+    await c.query('COMMIT');
+    return { db, guardado };
   } catch (e) {
     try { await c.query('ROLLBACK'); } catch (_) { /* la conexión ya murió */ }
     throw traducirError(e);
@@ -368,6 +436,6 @@ async function applySchema(){
 async function cerrar(){ if (pool) { const p = pool; pool = null; await p.end(); } }
 
 module.exports = {
-  getPool, loadDb, saveDb, getRev, health, applySchema, cerrar, traducirError,
+  getPool, loadDb, saveDb, mutarAtomico, getRev, health, applySchema, cerrar, traducirError, explicarErrorConexion,
   createBackup, listBackups, restoreBackup, deleteBackup, contar
 };

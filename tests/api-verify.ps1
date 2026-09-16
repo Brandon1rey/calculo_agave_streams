@@ -120,6 +120,9 @@ Check 'camion con 50 kg -> 400 (minimo 100)' 400 (Req POST '/api/camiones' @{ st
 Check 'fecha mal formada -> 400' 400 (Req POST '/api/camiones' @{ streamId = $streamId; kg = 5000; fechaPlaneada = '15/09/2026' }).Status
 Check 'inspeccion invalida -> 400' 400 (Req POST '/api/camiones' @{ streamId = $streamId; kg = 5000; fechaPlaneada = '2026-09-15'; inspeccion = @{ resultado = 'quizas' } }).Status
 Check 'PATCH camion con solo pesoBruto incoherente -> 400' 400 (Req PATCH "/api/camiones/$camionId" @{ pesoBruto = 1000 }).Status
+$recInc = Req POST "/api/camiones/$camionId/recibir" @{ fechaReal = '2026-09-11'; pesoBruto = 1000; pesoTara = 12000 }
+Check 'recibir con pesaje incoherente -> 400' 400 $recInc.Status
+Check 'el 400 del pesaje lo explica el motor (no el CHECK de la tabla)' $true ((J $recInc).error -like '*pesoBruto debe ser mayor que pesoTara*') "antes: 'Dato invalido: no cumple una regla de la base de datos'"
 
 $rec = Req POST "/api/camiones/$camionId/recibir" @{ fechaReal = '2026-09-15' }
 Check 'POST /camiones/:id/recibir -> 200' 200 $rec.Status
@@ -176,6 +179,11 @@ Check 'preset inexistente -> 404' 404 (Req POST "/api/razones/$rsId/presets/inex
 
 # ---------- 9. Integridad referencial ----------
 Check 'DELETE razon con streams -> 409' 409 (Req DELETE "/api/razones/$rsId").Status
+$rsOrden = @((J (Req POST '/api/razones' @{ nombre = 'Solo Ordenes'; corto = 'SOL' })).razonesSociales | Where-Object { $_.corto -eq 'SOL' })[0]
+Req POST '/api/ordenes' @{ nombre = 'Lote de prueba'; rsId = $rsOrden.id; agaveKg = 5000 } | Out-Null
+$delRsOrden = Req DELETE "/api/razones/$($rsOrden.id)"
+Check 'DELETE razon usada por una orden -> 409' 409 $delRsOrden.Status
+Check 'el 409 de la orden lo explica el motor (no la clave foranea)' $true ((J $delRsOrden).error -like '*rdenes de producci*n*') "antes: 'Esa razon social esta en uso...'"
 Check 'DELETE stream inexistente -> 404' 404 (Req DELETE '/api/streams/s-nope').Status
 $rsDest = @((J (Req POST '/api/razones' @{ nombre = 'Destino Derivado'; corto = 'DD' })).razonesSociales | Where-Object { $_.corto -eq 'DD' })[0]
 $c2 = Req POST '/api/camiones' @{ streamId = $streamId; kg = 5000; fechaPlaneada = '2026-09-16'; fechaReal = '2026-09-16'; rsDestinoId = $rsDest.id }
@@ -224,6 +232,9 @@ Check 'no se sirven las utilidades (/scripts/dev-server.js)' 404 (Req GET '/scri
 Check 'no se sirve el esquema (/supabase/schema.sql)' 404 (Req GET '/supabase/schema.sql').Status
 Check 'no se sirve package.json' 404 (Req GET '/package.json').Status
 Check 'no se sirve .env.local' @(404, 403) (Req GET '/.env.local').Status
+$hijack = Req GET '/api/state?__p=no-existe'
+Check 'un ?__p= arbitrario NO secuestra la ruta' 200 $hijack.Status "antes: resolvia a /api/no-existe y devolvia 404"
+Check 'y sigue devolviendo el estado real' $true ((J $hijack).razonesSociales -ne $null)
 
 # ---------- 13. Reset con respaldo automatico ----------
 $revPre = (J (Req GET '/api/state')).rev
@@ -244,6 +255,20 @@ Check 'el dato se lee de nuevo desde Postgres' 1 (J (Req GET '/api/state')).razo
 $db2 = J (Req GET '/api/db')
 Check 'el documento crudo tambien lo tiene' 1 $db2.db.razonesSociales.Count
 Check 'la revision avanzo con el reset y la escritura' $true ($db2.rev -gt $revPre) "rev $revPre -> $($db2.rev)"
+
+# ---------- 15. Concurrencia: dos escrituras a la vez no se pierden ----------
+$cli = New-Object System.Net.Http.HttpClient
+$tareas = @()
+foreach ($etq in @('A', 'B')) {
+  $msg = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::new('POST'), "$Base/api/razones")
+  $msg.Content = [System.Net.Http.StringContent]::new('{"nombre":"CONC ' + $etq + '","corto":"CC' + $etq + '"}', [System.Text.Encoding]::UTF8, 'application/json')
+  $tareas += $cli.SendAsync($msg)
+}
+[System.Threading.Tasks.Task]::WaitAll($tareas)
+$codigos = ($tareas | ForEach-Object { [int]$_.Result.StatusCode }) -join ','
+Check 'las dos escrituras simultaneas responden 201' '201,201' $codigos
+$vivas = @((J (Req GET '/api/state')).razonesSociales | Where-Object { $_.corto -eq 'CCA' -or $_.corto -eq 'CCB' }).Count
+Check 'ninguna de las dos escrituras simultaneas se pierde' 2 $vivas "antes de mutarAtomico se perdia 1 de cada 2 (reproducido 8/8)"
 
 # ---------- Reporte ----------
 Write-Host ''

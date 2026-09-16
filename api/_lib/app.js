@@ -235,11 +235,10 @@ function ticketHtml(st, id){
 }
 
 /* ============================== API REST ============================== */
-/* Ejecuta una mutación: valida+muta en memoria y persiste en una transacción. */
+/* Ejecuta una mutación: valida+muta y persiste en UNA transacción con bloqueo,
+   de modo que dos escrituras simultáneas no se pisan (ver db.mutarAtomico). */
 async function mutar(res, fn, code){
-  const db = await dbmod.loadDb();
-  fn(db);
-  const guardado = await dbmod.saveDb(db);
+  const { db, guardado } = await dbmod.mutarAtomico(fn);
   sendJson(res, code || 200, stateOf(db, guardado));
 }
 
@@ -390,8 +389,11 @@ function serveStatic(pathname, res){
 function resolverRuta(req, u){
   const inyectada = u.searchParams.get('__p');
   if (inyectada) u.searchParams.delete('__p');   // no es un filtro de negocio
-  const segmentos = u.pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean);
-  if (segmentos.length <= 1 && inyectada){
+  // Solo se honra __p cuando la petición llegó AL DESTINO del rewrite
+  // (/api/index). Si no, un cliente podría secuestrar cualquier ruta de un
+  // segmento con ?__p=... y /api/state dejaría de responder el estado.
+  const esDestinoDelRewrite = (u.pathname === '/api' || u.pathname === '/api/' || u.pathname === '/api/index');
+  if (esDestinoDelRewrite && inyectada){
     return { pathname: '/api/' + String(inyectada).replace(/^\/+/, ''), inyectada: inyectada, origen: 'rewrite(__p)' };
   }
   return { pathname: u.pathname, inyectada: inyectada || null, origen: 'req.url' };

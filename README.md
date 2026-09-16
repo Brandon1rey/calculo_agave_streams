@@ -61,6 +61,10 @@ npm run db:import                    # no borra el archivo original
    - `DATABASE_URL` (obligatoria) — la cadena del pooler.
    - `APP_PASSWORD` (muy recomendada) — protege la app publicada.
    - `AUTH_SECRET` — cadena larga y aleatoria para firmar la cookie.
+   - `AGAVE_TZ` (opcional) — zona horaria del "hoy" del negocio. Por defecto
+     `America/Mexico_City`, porque Vercel ejecuta las funciones en **UTC**: sin
+     esto, a partir de las 18:00 (hora de México) el sistema ya cree que es
+     mañana y marca como atrasados los camiones del propio día.
 4. Deploy. Para entrar la primera vez: `https://TU-APP.vercel.app/?k=TU_CONTRASEÑA`
    (deja una cookie firmada de 90 días; después ya puedes entrar normal).
 
@@ -239,14 +243,19 @@ Flujo de una escritura: `loadDb()` → `engine.<mutación>()` (valida y muta) �
 ## 10 · Pruebas
 
 ```bash
-# Suite de API (124 checks). USA UNA BASE DE PRUEBAS: termina con /api/reset.
+# Motor de negocio + capa sin conexión (unitarias, sin servidor ni base de datos)
+npm test
+
+# Suite de API (132 checks). USA UNA BASE DE PRUEBAS: termina con /api/reset.
 $env:DATABASE_URL='postgresql://postgres:agave@127.0.0.1:55432/agave_test'
 $env:PORT='3099'; $env:NO_BROWSER='1'; node scripts/dev-server.js
 pwsh -File tests/api-verify.ps1 -Base http://127.0.0.1:3099
-
-# Capa sin conexión (23 checks, sin servidor ni navegador)
-npm run test:offline
 ```
+
+Las suites se complementan: las unitarias cubren reglas del motor (zona horaria
+del negocio, coherencia de pesaje, integridad al borrar) y la de API cubre el
+contrato HTTP completo, incluida la **concurrencia** (dos escrituras simultáneas
+no deben perder ninguna).
 
 ---
 
@@ -261,3 +270,22 @@ npm run test:offline
 | 5 | Una `db.json` corrupta se sobrescribía con una vacía, sin aviso. | **Obsoleto**: ya no hay archivo único; Postgres garantiza la integridad. |
 | 6 | Borrar una razón social usada solo como **destino derivado** dejaba referencias colgantes y descuadraba los totales. | **Corregido**: bloquea con 409 (y la clave foránea lo refuerza). |
 | 7 | `updateCamion` permitía dejar `pesoBruto <= pesoTara`; orden inestable con fechas iguales. | **Corregido** con validación de coherencia y `CHECK` en la tabla. |
+
+## 12 · Auditoría con bug-catcher (2.0.1)
+
+Segunda pasada sobre el código ya migrado, con barrido determinista (sintaxis,
+ESLint con reglas de bugs, `npm audit`, secretos en árbol e historial) y pruebas
+de reproducción antes de cada parche.
+
+| # | Problema | Estado |
+| --- | --- | --- |
+| 8 | **Actualizaciones perdidas**: cada escritura era leer-modificar-escribir sobre el documento completo; dos peticiones simultáneas se pisaban y una desaparecía (reproducido **8 de 8 veces**). | **Corregido**: `db.mutarAtomico()` hace todo en una transacción que bloquea la fila de `settings`, así los escritores se serializan. Verificado: 0 pérdidas en 8 parejas. |
+| 9 | **El "hoy" del negocio usaba la zona del servidor** (Vercel = UTC): a las 20:30 de México el sistema ya creía que era mañana y marcaba los camiones del día como atrasados. | **Corregido**: `AGAVE_TZ` (por defecto `America/Mexico_City`). |
+| 10 | `recibirCamion` no validaba la coherencia del pesaje (se me escapó al arreglar el 7): el usuario veía un mensaje de la base de datos en vez del del motor. | **Corregido**, con prueba unitaria. |
+| 11 | `deleteRazonSocial` no comprobaba las órdenes de producción: el 409 lo daba la clave foránea, con mensaje genérico. | **Corregido**, con prueba unitaria. |
+| 12 | El parámetro interno `?__p=` del rewrite de Vercel podía secuestrar cualquier ruta de un segmento (`/api/state?__p=x`). | **Corregido**: solo se honra en el destino real del rewrite. |
+
+Pendientes conocidos (sin parche, requieren decisión): retención de respaldos en
+la tabla `backups` (crecen sin límite), inyección de fórmulas en el CSV si algún
+texto empieza con `=`, y el `?k=` de entrada deja la contraseña en los logs de
+acceso de Vercel. La app tampoco tiene CI: nada impide desplegar con tests rojos.
