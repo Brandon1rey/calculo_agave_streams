@@ -1,54 +1,92 @@
 'use strict';
-// Servidor: API REST CRUD + estáticos. Sin dependencias. Puerto 3053.
-// Módulos: recepción (camiones, pesaje, inspección, ticket), producción
-// (órdenes), calculadora fine-tunable (parametros, presets), respaldos.
-const http = require('http');
+/* ============================================================================
+ * Agave Cía · Router HTTP + API REST
+ * ----------------------------------------------------------------------------
+ * Este archivo es el único punto de entrada de la API y lo usan DOS entornos:
+ *   - Vercel  : api/[...path].js  → module.exports = handleRequest
+ *   - Local   : scripts/dev-server.js → http.createServer(handleRequest)
+ *
+ * Flujo de una escritura: loadDb() → engine.<mutación>() (valida y muta) →
+ * saveDb() (transacción) → computeState() → respuesta con el estado completo.
+ * Así el cliente siempre recibe la verdad calculada por el motor real.
+ * ========================================================================== */
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
-const model = require('./lib/model');
+const crypto = require('crypto');
+const engine = require('../../engine.js');
+const dbmod = require('./db.js');
 
-const ROOT = __dirname;
-const PORT = Number(process.env.PORT) || 3053;
-
-const store = new model.Store();
-store.load();
-
+const ROOT = path.join(__dirname, '..', '..');
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png',
   '.jpg': 'image/jpeg', '.webp': 'image/webp', '.csv': 'text/csv; charset=utf-8'
 };
+// Rutas que NUNCA se sirven como estáticos (código de servidor y datos).
+const ESTATICOS_BLOQUEADOS = [/^\/data\//i, /^\/api\/_lib\//i, /^\/scripts\//i, /^\/supabase\//i,
+  /^\/tests\//i, /^\/\./, /^\/(server|package|vercel|package-lock|README)/i];
 
-function sendJson(res, code, obj){ res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); }
+/* ============================== helpers HTTP ============================== */
+function sendJson(res, code, obj, cache){
+  if (res.writableEnded) return;
+  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cache || 'no-store' });
+  res.end(JSON.stringify(obj));
+}
 function sendErr(res, code, msg){ sendJson(res, code, { error: msg }); }
 
 function readBody(req){
   return new Promise((resolve, reject) => {
     let data = '';
     req.on('data', c => { data += c; if (data.length > 1e6){ req.destroy(); reject(new Error('Cuerpo demasiado grande')); } });
-    req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}); } catch(e){ reject(new Error('JSON inválido en el cuerpo')); } });
+    req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}); } catch (e){ reject(new Error('JSON inválido en el cuerpo')); } });
     req.on('error', reject);
   });
 }
-function state(){ return model.computeState(store.data); }
-function run(res, fn){
-  try { const db = fn(store.data); if (db !== store.data) store.save(); sendJson(res, 200, state()); }
-  catch (e){ sendErr(res, e.status || 400, e.message || String(e)); }
+
+function parseCookies(header){
+  const out = {};
+  String(header || '').split(';').forEach(part => {
+    const i = part.indexOf('=');
+    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  });
+  return out;
 }
-function created(res, fn){
-  try { const db = fn(store.data); if (db !== store.data) store.save(); sendJson(res, 201, state()); }
-  catch (e){ sendErr(res, e.status || 400, e.message || String(e)); }
+
+/* Puerta opcional: si defines APP_PASSWORD, la API exige una cookie firmada.
+   Se entra una sola vez abriendo la app con ?k=LA_CONTRASEÑA.
+   Sin APP_PASSWORD (uso local) queda abierta, como antes. */
+function authGate(req, res, url){
+  const pass = process.env.APP_PASSWORD;
+  if (!pass) return true;
+  const secret = process.env.AUTH_SECRET || pass;
+  const esperado = crypto.createHmac('sha256', secret).update('agave-dashboard-v1').digest('hex');
+  if (parseCookies(req.headers.cookie).agave_auth === esperado) return true;
+  const k = url.searchParams.get('k');
+  if (k && k === pass){
+    const seguro = String(req.headers['x-forwarded-proto'] || '') === 'https';
+    res.setHeader('Set-Cookie', 'agave_auth=' + esperado + '; Path=/; HttpOnly; SameSite=Lax; Max-Age=' + (90 * 24 * 3600) + (seguro ? '; Secure' : ''));
+    return true;
+  }
+  sendErr(res, 401, 'No autorizado. Abre la app una vez con ?k=TU_CONTRASEÑA');
+  return false;
+}
+
+/* ============================== estado / vistas ============================== */
+function stateOf(db, guardado){
+  const st = engine.computeState(db);
+  st.rev = guardado ? guardado.rev : (db.rev || 0);
+  st.updatedAt = guardado ? guardado.updatedAt : (db.updatedAt || null);
+  return st;
 }
 
 function csvQ(s){ return '"' + String(s).replace(/"/g, '""') + '"'; }
-function exportCsv(res){
-  const st = state();
+
+function exportCsv(res, st){
   const rows = [];
   const q = csvQ;
   const n = v => (v === null || v === undefined || v === '') ? '' : (typeof v === 'number' ? String(Math.round(v * 1000) / 1000) : String(v));
-  // Sección = línea de título + cabecera + filas + línea en blanco (compatible con Excel)
   const sheet = (title, headers, dataRows) => {
     rows.push('### HOJA: ' + title);
     rows.push(headers.map(q).join(','));
@@ -58,12 +96,12 @@ function exportCsv(res){
   const rsById = {};
   st.razonesSociales.forEach(r => { rsById[r.id] = r; });
 
-  // 1) META
   const counts = { razones: st.razonesSociales.length, streams: st.streams.length, camiones: st.camiones.length, consumos: st.consumos.length, ordenes: st.ordenes.length };
   sheet('META', ['clave', 'valor'], [
     ['exportado_en', new Date().toISOString()],
     ['hoy_sistema', st.meta.hoy],
-    ['version_base', store.data.version],
+    ['version_base', st.version || engine.SCHEMA_VERSION],
+    ['revision', st.rev || 0],
     ['total_razones_sociales', counts.razones],
     ['total_streams', counts.streams],
     ['total_camiones', counts.camiones],
@@ -71,7 +109,6 @@ function exportCsv(res){
     ['total_ordenes', counts.ordenes]
   ].map(r => [n(r[0]), n(r[1])]));
 
-  // 2) RESUMEN GENERAL
   const R = st.resumen;
   sheet('RESUMEN GENERAL', ['indicador', 'valor', 'unidad'], [
     ['objetivo_campana', R.objetivoT, 't'],
@@ -86,7 +123,6 @@ function exportCsv(res){
     ['pct_consumo', R.aprovechadoT > 0 ? Math.round(R.consumidoT / R.aprovechadoT * 100) : 0, '%']
   ].map(r => [r[0], n(r[1]), r[2]]));
 
-  // 3) RAZONES SOCIALES (con parámetros de cálculo y totales de campaña)
   sheet('RAZONES SOCIALES', [
     'id', 'corto', 'nombre', 'rendimiento_efectivo_Lt', 'preset',
     'param_coccion_pct', 'param_molienda_pct', 'param_conversion_Lkg', 'param_destilacion_pct', 'param_anejamiento_pct',
@@ -102,7 +138,6 @@ function exportCsv(res){
     r.status.text
   ].map(n)));
 
-  // 4) STREAMS (ingreso físico + cálculo + destinos)
   sheet('STREAMS', [
     'id', 'nombre', 'zona', 'razon_social', 'objetivo_t', 'merma_rate', 'recibido_t', 'merma_t', 'merma_efectiva_pct',
     'aprovechado_t', 'consumido_t', 'restante_t', 'rendimiento_Lt', 'tequila_esperado_L', 'tequila_producido_L',
@@ -117,7 +152,6 @@ function exportCsv(res){
     ].map(n);
   }));
 
-  // 5) CAMIONES (recepción: pesaje, inspección, destino)
   sheet('CAMIONES', [
     'id', 'stream', 'zona', 'razon_social_default', 'razon_social_destino', 'derivado',
     'placa', 'peso_neto_kg', 'peso_bruto_kg', 'peso_tara_kg',
@@ -128,13 +162,12 @@ function exportCsv(res){
     const destRs = rsById[t.rsDestinoId || (s ? s.rsId : '')];
     const ins = t.inspeccion || {};
     return [
-      t.id, s ? s.nombre : '', s ? s.zona : '', dflt ? dflt.corto : '', destRs ? destRs.corto : '', t.rsDestinoId && t.rsDestinoId !== s.rsId ? 'SI' : 'NO',
+      t.id, s ? s.nombre : '', s ? s.zona : '', dflt ? dflt.corto : '', destRs ? destRs.corto : '', t.rsDestinoId && s && t.rsDestinoId !== s.rsId ? 'SI' : 'NO',
       t.placa || '', t.kg, t.pesoBruto, t.pesoTara,
       t.fechaPlaneada, t.fechaReal || '', t.diasRetraso, t.estado, ins.resultado || '', ins.pctPina, ins.nota || ''
     ].map(n);
   }));
 
-  // 6) CONSUMOS (agave a producción)
   sheet('CONSUMOS', ['id', 'fecha', 'stream', 'razon_social_destino', 'kg', 'tequila_equivalente_L'], st.consumos.map(c => {
     const s = st.streams.find(x => x.id === c.streamId);
     const destRs = rsById[c.rsDestinoId || (s ? s.rsId : '')];
@@ -142,7 +175,6 @@ function exportCsv(res){
     return [c.id, c.fecha, s ? s.nombre : '', destRs ? destRs.corto : '', c.kg, litros].map(n);
   }));
 
-  // 7) ÓRDENES DE PRODUCCIÓN (con resultados reales por etapa)
   sheet('ORDENES', [
     'id', 'nombre', 'razon_social', 'estado', 'fecha_inicio', 'fecha_fin', 'agave_kg',
     'tequila_esperado_L', 'tequila_real_L', 'rendimiento_real_Lt', 'eficiencia_pct',
@@ -156,7 +188,6 @@ function exportCsv(res){
     ].map(n);
   }));
 
-  // 8) PARÁMETROS GLOBALES DE CÁLCULO
   const mc = st.parametrosCalculo.mermaCausas;
   sheet('PARAMETROS', ['clave', 'valor', 'unidad'], [
     ['grados_tequila_abv', st.parametrosCalculo.gradosTequila, '% ABV'],
@@ -168,13 +199,13 @@ function exportCsv(res){
   ].map(r => [r[0], n(r[1]), r[2]]));
 
   const csv = '\ufeff' + rows.join('\r\n');
-  res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="agave-export-completo.csv"' });
+  res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="agave-export-completo.csv"' });
   res.end(csv);
 }
 
 function escHtml(s){ return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
-function ticketHtml(id){
-  const st = state();
+
+function ticketHtml(st, id){
   const t = st.camiones.find(x => x.id === id);
   if (!t) return null;
   const s = st.streams.find(x => x.id === t.streamId);
@@ -189,7 +220,7 @@ function ticketHtml(id){
     '<div class="h"><div><h1>Agave Cía · Remisión de recepción</h1><div class="f">Folio: <b>' + escHtml(t.id) + '</b></div></div><div class="f">Fecha de recepción:<br><b>' + escHtml(fecha) + '</b></div></div>' +
     '<table>' +
       '<tr><th>Proveedor / Stream</th><td>' + escHtml(s ? s.nombre : '—') + ' · ' + escHtml(s ? s.zona : '') + '</td></tr>' +
-      '<tr><th>Razón social (destino)</th><td>' + escHtml((t.rsDestinoId ? st.razonesSociales.find(function(x){ return x.id === t.rsDestinoId; }) : rs) ? ((t.rsDestinoId ? st.razonesSociales.find(function(x){ return x.id === t.rsDestinoId; }) : rs).nombre) : '—') + (rs && t.rsDestinoId && t.rsDestinoId !== s.rsId ? ' <small>(stream → ' + escHtml(rs.corto) + ')</small>' : '') + '</td></tr>' +
+      '<tr><th>Razón social (destino)</th><td>' + escHtml((t.rsDestinoId ? st.razonesSociales.find(function(x){ return x.id === t.rsDestinoId; }) : rs) ? ((t.rsDestinoId ? st.razonesSociales.find(function(x){ return x.id === t.rsDestinoId; }) : rs).nombre) : '—') + (rs && t.rsDestinoId && s && t.rsDestinoId !== s.rsId ? ' <small>(stream → ' + escHtml(rs.corto) + ')</small>' : '') + '</td></tr>' +
       '<tr><th>Placa</th><td>' + escHtml(t.placa || '—') + '</td></tr>' +
       '<tr><th>Fecha planeada</th><td>' + escHtml(t.fechaPlaneada || '—') + '</td></tr>' +
       '<tr><th>Inspección de calidad</th><td class="' + (ins.resultado === 'rechazado' ? 'warn' : 'ok') + '"><b>' + escHtml(insLabel) + '</b> · Piña útil: ' + escHtml(pct) + (ins.nota ? ' · Nota: ' + escHtml(ins.nota) : '') + '</td></tr>' +
@@ -203,123 +234,164 @@ function ticketHtml(id){
     '</body></html>';
 }
 
+/* ============================== API REST ============================== */
+/* Ejecuta una mutación: valida+muta en memoria y persiste en una transacción. */
+async function mutar(res, fn, code){
+  const db = await dbmod.loadDb();
+  fn(db);
+  const guardado = await dbmod.saveDb(db);
+  sendJson(res, code || 200, stateOf(db, guardado));
+}
+
 async function handleApi(req, res, method, pathname, params){
   try {
-    if (pathname === '/api/health' && method === 'GET') return sendJson(res, 200, { ok: true, servicio: 'agave-dashboard-backend', version: store.data.version, hoy: store.data.meta.hoy });
-    if (pathname === '/api/state' && method === 'GET') return sendJson(res, 200, state());
+    if (pathname === '/api/health' && method === 'GET'){
+      const h = await dbmod.health();
+      return sendJson(res, 200, { ok: true, servicio: 'agave-dashboard-backend', version: engine.SCHEMA_VERSION, hoy: engine.todayStr(), almacen: 'postgres', rev: h.rev, updatedAt: h.updatedAt, counts: h.counts }, 'no-store');
+    }
+
+    // Documento crudo (diagnóstico y respaldo manual desde el navegador)
+    if (pathname === '/api/db' && method === 'GET'){
+      const db = await dbmod.loadDb();
+      const doc = Object.assign({}, db);
+      delete doc.rev; delete doc.updatedAt;   // los metadatos van fuera, no dentro del documento
+      return sendJson(res, 200, { version: engine.SCHEMA_VERSION, rev: db.rev, updatedAt: db.updatedAt, db: doc }, 'no-cache');
+    }
+
+    if (pathname === '/api/state' && method === 'GET'){
+      const db = await dbmod.loadDb();
+      return sendJson(res, 200, stateOf(db), 'no-cache');
+    }
+
     if (pathname === '/api/camiones' && method === 'GET'){
-      let list = state().camiones;
+      const db = await dbmod.loadDb();
+      let list = stateOf(db).camiones;
       const est = params.get('estado'); if (est) list = list.filter(t => t.estado === est);
       const stream = params.get('stream'); if (stream) list = list.filter(t => t.streamId === stream);
       return sendJson(res, 200, { camiones: list, total: list.length });
     }
 
-    // PATCH /api/parametros  (parámetros globales: grados, merma por causa)
+    // Parámetros globales
     if (pathname === '/api/parametros' && method === 'PATCH'){
       const body = await readBody(req);
-      return run(res, db => model.updateParametrosCalculo(db, body));
+      return await mutar(res, db => engine.updateParametrosCalculo(db, body), 200);
     }
 
     // Razones sociales
-    if (pathname === '/api/razones' && method === 'POST'){ const body = await readBody(req); return created(res, db => model.addRazonSocial(db, body)); }
+    if (pathname === '/api/razones' && method === 'POST'){ const body = await readBody(req); return await mutar(res, db => engine.addRazonSocial(db, body), 201); }
     let m = pathname.match(/^\/api\/razones\/([A-Za-z0-9_-]+)$/);
-    if (m && method === 'PATCH'){ const body = await readBody(req); return run(res, db => model.updateRazonSocial(db, m[1], body)); }
-    if (m && method === 'DELETE') return run(res, db => model.deleteRazonSocial(db, m[1]));
-    // POST /api/razones/:id/presets/:nombre
+    if (m && method === 'PATCH'){ const body = await readBody(req); return await mutar(res, db => engine.updateRazonSocial(db, m[1], body), 200); }
+    if (m && method === 'DELETE') return await mutar(res, db => engine.deleteRazonSocial(db, m[1]), 200);
     m = pathname.match(/^\/api\/razones\/([A-Za-z0-9_-]+)\/presets\/([A-Za-z0-9_-]+)$/);
-    if (m && method === 'POST') return run(res, db => model.applyPreset(db, m[1], m[2]));
+    if (m && method === 'POST') return await mutar(res, db => engine.applyPreset(db, m[1], m[2]), 200);
 
     // Streams
-    if (pathname === '/api/streams' && method === 'POST'){ const body = await readBody(req); return created(res, db => model.addStream(db, body)); }
+    if (pathname === '/api/streams' && method === 'POST'){ const body = await readBody(req); return await mutar(res, db => engine.addStream(db, body), 201); }
     m = pathname.match(/^\/api\/streams\/([A-Za-z0-9_-]+)$/);
-    if (m && method === 'PATCH'){ const body = await readBody(req); return run(res, db => model.updateStream(db, m[1], body)); }
-    if (m && method === 'DELETE') return run(res, db => model.deleteStream(db, m[1]));
+    if (m && method === 'PATCH'){ const body = await readBody(req); return await mutar(res, db => engine.updateStream(db, m[1], body), 200); }
+    if (m && method === 'DELETE') return await mutar(res, db => engine.deleteStream(db, m[1]), 200);
     m = pathname.match(/^\/api\/streams\/([A-Za-z0-9_-]+)\/consumo$/);
-    if (m && method === 'POST'){ const body = await readBody(req); return created(res, db => model.addConsumo(db, m[1], body)); }
+    if (m && method === 'POST'){ const body = await readBody(req); return await mutar(res, db => engine.addConsumo(db, m[1], body), 201); }
 
     // Camiones
-    if (pathname === '/api/camiones' && method === 'POST'){ const body = await readBody(req); return created(res, db => model.addCamion(db, body)); }
+    if (pathname === '/api/camiones' && method === 'POST'){ const body = await readBody(req); return await mutar(res, db => engine.addCamion(db, body), 201); }
     m = pathname.match(/^\/api\/camiones\/([A-Za-z0-9_-]+)\/recibir$/);
-    if (m && method === 'POST'){ const body = await readBody(req); return run(res, db => model.recibirCamion(db, m[1], body)); }
-    // GET /api/camiones/:id/ticket
+    if (m && method === 'POST'){ const body = await readBody(req); return await mutar(res, db => engine.recibirCamion(db, m[1], body), 200); }
     m = pathname.match(/^\/api\/camiones\/([A-Za-z0-9_-]+)\/ticket$/);
     if (m && method === 'GET'){
-      const html = ticketHtml(m[1]);
+      const db = await dbmod.loadDb();
+      const html = ticketHtml(stateOf(db), m[1]);
       if (!html){ sendErr(res, 404, 'Camión no encontrado'); return; }
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
       return res.end(html);
     }
     m = pathname.match(/^\/api\/camiones\/([A-Za-z0-9_-]+)$/);
-    if (m && method === 'PATCH'){ const body = await readBody(req); return run(res, db => model.updateCamion(db, m[1], body)); }
-    if (m && method === 'DELETE') return run(res, db => model.deleteCamion(db, m[1]));
+    if (m && method === 'PATCH'){ const body = await readBody(req); return await mutar(res, db => engine.updateCamion(db, m[1], body), 200); }
+    if (m && method === 'DELETE') return await mutar(res, db => engine.deleteCamion(db, m[1]), 200);
 
     // Consumos
     m = pathname.match(/^\/api\/consumos\/([A-Za-z0-9_-]+)$/);
-    if (m && method === 'DELETE') return run(res, db => model.deleteConsumo(db, m[1]));
+    if (m && method === 'DELETE') return await mutar(res, db => engine.deleteConsumo(db, m[1]), 200);
 
     // Órdenes de producción
-    if (pathname === '/api/ordenes' && method === 'POST'){ const body = await readBody(req); return created(res, db => model.addOrden(db, body)); }
+    if (pathname === '/api/ordenes' && method === 'POST'){ const body = await readBody(req); return await mutar(res, db => engine.addOrden(db, body), 201); }
     m = pathname.match(/^\/api\/ordenes\/([A-Za-z0-9_-]+)$/);
-    if (m && method === 'PATCH'){ const body = await readBody(req); return run(res, db => model.updateOrden(db, m[1], body)); }
-    if (m && method === 'DELETE') return run(res, db => model.deleteOrden(db, m[1]));
+    if (m && method === 'PATCH'){ const body = await readBody(req); return await mutar(res, db => engine.updateOrden(db, m[1], body), 200); }
+    if (m && method === 'DELETE') return await mutar(res, db => engine.deleteOrden(db, m[1]), 200);
 
-    // Respaldos
-    if (pathname === '/api/backup' && method === 'POST'){ const b = model.createBackup(store.data); return sendJson(res, 201, { backup: b, backups: model.listBackups() }); }
-    if (pathname === '/api/backups' && method === 'GET') return sendJson(res, 200, { backups: model.listBackups() });
+    // Respaldos (ahora en la base de datos: en Vercel no hay disco)
+    if (pathname === '/api/backup' && method === 'POST'){
+      const db = await dbmod.loadDb();
+      const b = await dbmod.createBackup(db, { auto: false });
+      return sendJson(res, 201, { backup: b, backups: await dbmod.listBackups() }, 'no-store');
+    }
+    if (pathname === '/api/backups' && method === 'GET') return sendJson(res, 200, { backups: await dbmod.listBackups() }, 'no-store');
     let bm = pathname.match(/^\/api\/backups\/([A-Za-z0-9_-]+)\/restore$/);
-    if (bm && method === 'POST'){ store.data = model.restoreBackup(bm[1]); store.save(); return sendJson(res, 200, state()); }
+    if (bm && method === 'POST'){
+      const db = await dbmod.restoreBackup(bm[1]);
+      const guardado = await dbmod.saveDb(db);
+      return sendJson(res, 200, stateOf(db, guardado));
+    }
     bm = pathname.match(/^\/api\/backups\/([A-Za-z0-9_-]+)$/);
-    if (bm && method === 'DELETE'){ model.deleteBackup(bm[1]); return sendJson(res, 200, { ok: true, backups: model.listBackups() }); }
+    if (bm && method === 'DELETE'){ await dbmod.deleteBackup(bm[1]); return sendJson(res, 200, { ok: true, backups: await dbmod.listBackups() }, 'no-store'); }
 
-    if (pathname === '/api/reset' && method === 'POST'){ store.reset(); return sendJson(res, 200, state()); }
-    if (pathname === '/api/export.csv' && method === 'GET') return exportCsv(res);
+    // Reset: SIEMPRE deja un respaldo automático antes de vaciar
+    if (pathname === '/api/reset' && method === 'POST'){
+      const antes = await dbmod.loadDb();
+      const b = await dbmod.createBackup(antes, { auto: true, motivo: 'antes de /api/reset' });
+      const vacia = engine.emptyDb();
+      const guardado = await dbmod.saveDb(vacia);
+      const st = stateOf(vacia, guardado);
+      st.autoBackup = b;
+      return sendJson(res, 200, st);
+    }
+
+    if (pathname === '/api/export.csv' && method === 'GET'){
+      const db = await dbmod.loadDb();
+      return exportCsv(res, stateOf(db));
+    }
 
     return sendErr(res, 404, 'Ruta de API no encontrada: ' + method + ' ' + pathname);
   } catch (e){
+    // Respeta el status del error de negocio (antes todo lo no-JSON caía en 500)
+    if (e && e.status) return sendErr(res, e.status, e.message || String(e));
     if (e && e.message && /JSON/.test(e.message)) return sendErr(res, 400, e.message);
+    if (e && /DATABASE_URL/.test(e.message || '')) return sendErr(res, 500, e.message);
+    console.error('[api] error inesperado:', e && e.stack ? e.stack : e);
     return sendErr(res, 500, 'Error interno: ' + (e && e.message ? e.message : String(e)));
   }
 }
 
-/* ---------- Estáticos ---------- */
+/* ============================== estáticos (solo dev) ============================== */
 function serveStatic(pathname, res){
   let urlPath = decodeURIComponent(pathname || '/');
   if (urlPath === '/') urlPath = '/index.html';
-  const safe = path.normalize(urlPath).replace(/^([./\\])+/, '');
-  const filePath = path.join(ROOT, safe);
+  const safe = path.normalize(urlPath).split('\\').join('/');
+  if (ESTATICOS_BLOQUEADOS.some(re => re.test(safe))){ res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('404'); return; }
+  const filePath = path.join(ROOT, safe.replace(/^\/+/, ''));
   if (!filePath.startsWith(ROOT)){ res.writeHead(403); res.end('403'); return; }
   fs.readFile(filePath, (err, data) => {
-    if (err){ res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' }); res.end('<h1>404</h1><p>No encontrado: ' + urlPath + '</p>'); return; }
+    if (err){ res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' }); res.end('<h1>404</h1><p>No encontrado: ' + escHtml(urlPath) + '</p>'); return; }
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
+    if (ext === '.html' || filePath.endsWith('sw.js')) headers['Cache-Control'] = 'no-cache';
+    res.writeHead(200, headers);
     res.end(data);
   });
 }
 
-const server = http.createServer((req, res) => {
-  const u = new URL(req.url, 'http://localhost');
+/* ============================== entrada ============================== */
+async function handleRequest(req, res){
+  const host = req.headers.host || 'localhost';
+  const u = new URL(req.url, 'http://' + host);
   const method = (req.method || 'GET').toUpperCase();
-  if (u.pathname.startsWith('/api/')){ handleApi(req, res, method, u.pathname, u.searchParams).catch(e => sendErr(res, 500, 'Error interno')); return; }
-  if (method !== 'GET' && method !== 'HEAD'){ sendErr(res, 405, 'Método no permitido'); return; }
-  serveStatic(u.pathname, res);
-});
 
-function openBrowser(url){
-  const cmd = process.platform === 'win32' ? 'start "" "' + url + '"' : process.platform === 'darwin' ? 'open "' + url + '"' : 'xdg-open "' + url + '"';
-  exec(cmd, () => {});
+  if (u.pathname.startsWith('/api/')){
+    if (!authGate(req, res, u)) return;
+    return handleApi(req, res, method, u.pathname, u.searchParams);
+  }
+  if (method !== 'GET' && method !== 'HEAD'){ sendErr(res, 405, 'Método no permitido'); return; }
+  return serveStatic(u.pathname, res);
 }
-server.on('error', (e) => {
-  if (e.code === 'EADDRINUSE'){ console.log('El dashboard ya está corriendo en el puerto ' + PORT + '.'); if (!process.env.NO_BROWSER) openBrowser('http://localhost:' + PORT + '/'); }
-  else { console.error(e); process.exit(1); }
-});
-server.listen(PORT, () => {
-  const url = 'http://localhost:' + PORT + '/';
-  console.log('');
-  console.log('  Agave Cia - Recepción + Producción E2E + Calculadora');
-  console.log('  API: ' + url + 'api/state');
-  console.log('  UI:  ' + url);
-  console.log('  Datos: ' + model.DB_FILE);
-  console.log('  Detener: Ctrl+C');
-  console.log('');
-  if (!process.env.NO_BROWSER) openBrowser(url);
-});
+
+module.exports = { handleRequest, handleApi, serveStatic, authGate, stateOf, ticketHtml, exportCsv };
